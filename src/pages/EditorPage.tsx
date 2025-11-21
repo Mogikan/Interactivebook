@@ -26,7 +26,7 @@ import { Upload, Copy, Save, Trash2, FileQuestion, ListOrdered, ArrowLeftRight, 
 
 export default function EditorPage() {
     const [mdxContent, setMdxContent] = useState<string>(() => {
-        return localStorage.getItem('yazula_editor_content') || '';
+        return localStorage.getItem('akkem_editor_content') || '';
     });
     const [activeWizard, setActiveWizard] = useState<string | null>(null);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -47,7 +47,7 @@ export default function EditorPage() {
 
     // Save to localStorage whenever content changes
     useEffect(() => {
-        localStorage.setItem('yazula_editor_content', mdxContent);
+        localStorage.setItem('akkem_editor_content', mdxContent);
     }, [mdxContent]);
 
     const handleSaveFile = async () => {
@@ -84,7 +84,7 @@ export default function EditorPage() {
     const handleClearAll = () => {
         if (window.confirm('Are you sure you want to clear all content? This action cannot be undone.')) {
             setMdxContent('');
-            localStorage.removeItem('yazula_editor_content');
+            localStorage.removeItem('akkem_editor_content');
         }
     };
 
