@@ -1,3 +1,4 @@
+(demo)[https://mogikan.github.io/Interactivebook]
 Markdown declarative interactive books.
 Editor is available at the bottom of the navigation.
 ToC is declared in contens/course.yaml
