@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
 
 interface GroupingProps {
@@ -32,7 +32,8 @@ function DraggableItem({ id, text, className, disabled }: { id: string; text: st
 }
 
 // Group Container
-function GroupContainer({ id, title, items, isOver, submitted, correctItems }: { id: string; title: string; items: { id: string; text: string }[]; isOver: boolean; submitted: boolean; correctItems: string[] }) {
+// Group Container
+function GroupContainer({ id, title, items, isOver, submitted, correctItems, onItemClick }: { id: string; title: string; items: { id: string; text: string }[]; isOver: boolean; submitted: boolean; correctItems: string[]; onItemClick?: (id: string) => void }) {
     const { setNodeRef } = useDroppable({ id });
 
     return (
@@ -40,7 +41,7 @@ function GroupContainer({ id, title, items, isOver, submitted, correctItems }: {
             ref={setNodeRef}
             className={clsx(
                 "flex-1 min-w-[200px] p-4 rounded-xl border-2 transition-colors min-h-[200px]",
-                isOver ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50"
+                isOver ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-200 dark:ring-blue-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50"
             )}
         >
             <h3 className="font-bold mb-4 text-center text-gray-700 dark:text-gray-300">{title}</h3>
@@ -50,17 +51,21 @@ function GroupContainer({ id, title, items, isOver, submitted, correctItems }: {
                     const isWrong = submitted && !isCorrect;
 
                     return (
-                        <DraggableItem
-                            key={item.id}
-                            id={item.id}
-                            text={item.text}
-                            disabled={submitted}
-                            className={clsx(
-                                isCorrect ? "bg-green-100 border-green-500 text-green-800 dark:bg-green-900/30 dark:text-green-200" :
-                                    isWrong ? "bg-red-100 border-red-500 text-red-800 dark:bg-red-900/30 dark:text-red-200" :
-                                        "bg-white border-gray-300 dark:bg-gray-800 dark:border-gray-600"
-                            )}
-                        />
+                        <div key={item.id} onClick={(e) => {
+                            e.stopPropagation(); // Prevent group click
+                            onItemClick?.(item.id);
+                        }}>
+                            <DraggableItem
+                                id={item.id}
+                                text={item.text}
+                                disabled={submitted}
+                                className={clsx(
+                                    isCorrect ? "bg-green-100 border-green-500 text-green-800 dark:bg-green-900/30 dark:text-green-200" :
+                                        isWrong ? "bg-red-100 border-red-500 text-red-800 dark:bg-red-900/30 dark:text-red-200" :
+                                            "bg-white border-gray-300 dark:bg-gray-800 dark:border-gray-600"
+                                )}
+                            />
+                        </div>
                     );
                 })}
             </div>
@@ -73,6 +78,15 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
     const [placements, setPlacements] = useState<{ [itemId: string]: string }>({}); // itemId -> groupId
     const [submitted, setSubmitted] = useState(false);
     const [showAnswers, setShowAnswers] = useState(false);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    );
 
     useEffect(() => {
         const allItems: { id: string; text: string }[] = [];
@@ -98,23 +112,59 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                 return next;
             });
         }
+        setSelectedId(null);
+    };
+
+    const handleItemClick = (id: string) => {
+        if (submitted) return;
+        setSelectedId(prev => prev === id ? null : id);
+    };
+
+    const handleGroupClick = (groupId: string) => {
+        if (submitted || !selectedId) return;
+
+        setPlacements(prev => ({
+            ...prev,
+            [selectedId]: groupId
+        }));
+        setSelectedId(null);
+    };
+
+    const handleMoveToGroup = (itemId: string, groupId: string) => {
+        setPlacements(prev => ({
+            ...prev,
+            [itemId]: groupId
+        }));
+        setSelectedId(null);
+    };
+
+    const handleReturnToBank = (itemId: string) => {
+        setPlacements(prev => {
+            const next = { ...prev };
+            delete next[itemId];
+            return next;
+        });
+        setSelectedId(null);
     };
 
     const checkAnswers = () => {
         setSubmitted(true);
         setShowAnswers(false);
+        setSelectedId(null);
     };
 
     const reset = () => {
         setSubmitted(false);
         setShowAnswers(false);
         setPlacements({});
+        setSelectedId(null);
         setItems(prev => [...prev].sort(() => Math.random() - 0.5));
     };
 
     const handleShowAnswers = () => {
         setShowAnswers(true);
         setSubmitted(true);
+        setSelectedId(null);
 
         const newPlacements: { [itemId: string]: string } = {};
         items.forEach(item => {
@@ -137,7 +187,7 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
 
     return (
         <div className="my-6 p-6 border border-gray-200 rounded-xl bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700">
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
 
                 {/* Bank of items */}
                 {!submitted && !showAnswers && (
@@ -146,7 +196,30 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                             <span className="text-gray-400 italic w-full text-center">All items placed</span>
                         ) : (
                             unplacedItems.map(item => (
-                                <DraggableItem key={item.id} id={item.id} text={item.text} />
+                                <div key={item.id} className="relative group">
+                                    <div onClick={() => handleItemClick(item.id)}>
+                                        <DraggableItem
+                                            id={item.id}
+                                            text={item.text}
+                                            className={selectedId === item.id ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900" : ""}
+                                        />
+                                    </div>
+                                    {/* Move to Menu */}
+                                    {selectedId === item.id && (
+                                        <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px]">
+                                            <div className="text-xs font-semibold text-gray-500 mb-2 px-2">Move to:</div>
+                                            {Object.keys(groups).map(groupName => (
+                                                <button
+                                                    key={groupName}
+                                                    onClick={() => handleMoveToGroup(item.id, groupName)}
+                                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300"
+                                                >
+                                                    {groupName}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             ))
                         )}
                     </div>
@@ -157,15 +230,28 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                     {Object.keys(groups).map(groupName => {
                         const groupItems = items.filter(item => placements[item.id] === groupName);
                         return (
-                            <GroupContainer
+                            <div
                                 key={groupName}
-                                id={groupName}
-                                title={groupName}
-                                items={groupItems}
-                                isOver={false} // We could track this with useDroppable but it's inside the component
-                                submitted={submitted}
-                                correctItems={groups[groupName]}
-                            />
+                                className="flex-1 min-w-[200px]"
+                                onClick={() => handleGroupClick(groupName)}
+                            >
+                                <GroupContainer
+                                    id={groupName}
+                                    title={groupName}
+                                    items={groupItems}
+                                    isOver={selectedId !== null} // Visual hint that it's a target
+                                    submitted={submitted}
+                                    correctItems={groups[groupName]}
+                                    onItemClick={handleReturnToBank}
+                                />
+                                {/* Render items inside group with click handlers to remove/move */}
+                                <div className="hidden">
+                                    {/* This is a hack to keep using the existing GroupContainer structure but we need to inject the click handler for items inside. 
+                                        Actually, GroupContainer renders the items. We need to pass the click handler down or wrap them.
+                                        Let's modify GroupContainer to accept an onItemClick prop.
+                                    */}
+                                </div>
+                            </div>
                         );
                     })}
                 </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
 
 interface FillBlanksProps {
@@ -23,7 +23,7 @@ const getTextFromChildren = (children: React.ReactNode): string => {
 };
 
 // Draggable Item
-function DraggableWord({ id, text, disabled }: { id: string; text: string; disabled?: boolean }) {
+function DraggableWord({ id, text, disabled, className }: { id: string; text: string; disabled?: boolean; className?: string }) {
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id, disabled });
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -38,7 +38,8 @@ function DraggableWord({ id, text, disabled }: { id: string; text: string; disab
             {...attributes}
             className={clsx(
                 "inline-block px-2 py-1 m-1 border rounded cursor-grab active:cursor-grabbing",
-                disabled ? "cursor-default bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600" : "bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-700"
+                disabled ? "cursor-default bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600" : "bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-700",
+                className
             )}
         >
             {text}
@@ -102,8 +103,6 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
     const [, setShowAnswers] = useState(false);
 
     // Generate unique IDs for all items (answers + options)
-    // We use a smart merge: max(count_in_answers, count_in_options) for each word
-    // This allows options to act as the bank definition (if it covers answers) OR as distractors
     const [allItems] = useState<{ id: string; text: string }[]>(() => {
         const getFreq = (arr: string[]) => {
             const map = new Map<string, number>();
@@ -131,6 +130,18 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
 
     // droppedItems maps dropZoneId -> itemId
     const [droppedItems, setDroppedItems] = useState<{ [key: string]: string }>({});
+
+    // Selection state for click interaction
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [activeDropMenu, setActiveDropMenu] = useState<string | null>(null); // dropZoneId
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    );
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -190,16 +201,82 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                 setDragItems(prevDragItems => [...prevDragItems, activeId]); // Add back to bank
             }
         }
+        setSelectedId(null);
+    };
+
+    const handleWordClick = (id: string) => {
+        if (submitted) return;
+        setSelectedId(prev => prev === id ? null : id);
+        setActiveDropMenu(null);
+    };
+
+    const handleDropZoneClick = (dropId: string) => {
+        if (submitted) return;
+
+        const currentItemId = droppedItems[dropId];
+
+        // Case 1: Word selected -> Fill blank
+        if (selectedId) {
+            // If same word, do nothing
+            if (currentItemId === selectedId) {
+                setSelectedId(null);
+                return;
+            }
+
+            // Move word to this drop zone
+            const sourceDropZoneId = Object.keys(droppedItems).find(key => droppedItems[key] === selectedId);
+            const isFromBank = dragItems.includes(selectedId);
+
+            setDroppedItems(prev => {
+                const next = { ...prev };
+                next[dropId] = selectedId;
+                if (sourceDropZoneId) delete next[sourceDropZoneId];
+                return next;
+            });
+
+            setDragItems(prev => {
+                let next = [...prev];
+                if (isFromBank) next = next.filter(id => id !== selectedId);
+                if (currentItemId) next.push(currentItemId); // Return current item to bank
+                return next;
+            });
+
+            setSelectedId(null);
+            return;
+        }
+
+        // Case 2: Blank filled -> Return to bank
+        if (currentItemId) {
+            setDroppedItems(prev => {
+                const next = { ...prev };
+                delete next[dropId];
+                return next;
+            });
+            setDragItems(prev => [...prev, currentItemId]);
+            return;
+        }
+
+        // Case 3: Blank empty -> Show menu
+        setActiveDropMenu(prev => prev === dropId ? null : dropId);
+    };
+
+    const handleMenuOptionClick = (dropId: string, itemId: string) => {
+        setDroppedItems(prev => ({ ...prev, [dropId]: itemId }));
+        setDragItems(prev => prev.filter(id => id !== itemId));
+        setActiveDropMenu(null);
     };
 
     const checkAnswers = () => {
         setSubmitted(true);
         setShowAnswers(false);
+        setSelectedId(null);
+        setActiveDropMenu(null);
     };
 
     const retry = () => {
         setSubmitted(false);
         setShowAnswers(false);
+        setActiveDropMenu(null);
         // Do NOT clear inputs
     };
 
@@ -209,6 +286,8 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
         setInputs(new Array(answers.length).fill(''));
         setTouched(new Array(answers.length).fill(false));
         setDroppedItems({});
+        setSelectedId(null);
+        setActiveDropMenu(null);
 
         // Re-generate items to ensure fresh state if needed, or just reshuffle
         // Actually, we should keep the same items
@@ -218,6 +297,9 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
     const handleShowAnswers = () => {
         setShowAnswers(true);
         setSubmitted(true);
+        setSelectedId(null);
+        setActiveDropMenu(null);
+
         if (mode === 'input' || mode === 'picker') {
             setInputs([...answers]);
         } else {
@@ -343,16 +425,36 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
 
                             return (
                                 <span key={`${currentIndex}-${i}`} className={clsx(
-                                    "inline-block mx-1 rounded px-1",
+                                    "inline-block mx-1 rounded px-1 relative",
                                     isCorrect && "bg-green-100 dark:bg-green-900/30",
                                     isWrong && "bg-red-100 dark:bg-red-900/30"
                                 )}>
-                                    <DropZone
-                                        id={dropId}
-                                        current={droppedItemId}
-                                        text={droppedText}
-                                        disabled={submitted}
-                                    />
+                                    <div onClick={() => handleDropZoneClick(dropId)}>
+                                        <DropZone
+                                            id={dropId}
+                                            current={droppedItemId}
+                                            text={droppedText}
+                                            disabled={submitted}
+                                        />
+                                    </div>
+                                    {/* Options Menu */}
+                                    {activeDropMenu === dropId && !submitted && (
+                                        <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto">
+                                            <div className="text-xs font-semibold text-gray-500 mb-2 px-2">Select word:</div>
+                                            {dragItems.map(itemId => (
+                                                <button
+                                                    key={itemId}
+                                                    onClick={() => handleMenuOptionClick(dropId, itemId)}
+                                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300"
+                                                >
+                                                    {getItemText(itemId)}
+                                                </button>
+                                            ))}
+                                            {dragItems.length === 0 && (
+                                                <div className="text-xs text-gray-400 px-2 italic">No words available</div>
+                                            )}
+                                        </div>
+                                    )}
                                 </span>
                             );
                         }
@@ -379,7 +481,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
 
     return (
         <div className="my-6 p-6 border border-gray-200 rounded-xl bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700">
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                 <div className="mb-6 leading-loose text-lg text-gray-800 dark:text-gray-200">
                     {/* Render children recursively */}
                     {renderChildren(children)}
@@ -390,7 +492,13 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                         <div className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Options:</div>
                         <div className="flex flex-wrap gap-2">
                             {dragItems.map(id => (
-                                <DraggableWord key={id} id={id} text={getItemText(id)} />
+                                <div key={id} onClick={() => handleWordClick(id)}>
+                                    <DraggableWord
+                                        id={id}
+                                        text={getItemText(id)}
+                                        className={selectedId === id ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900" : ""}
+                                    />
+                                </div>
                             ))}
                         </div>
                     </div>
