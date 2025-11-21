@@ -4,8 +4,7 @@ import { MDXComponentsProvider } from './components/MDXComponentsProvider';
 import { loadCourseStructure, type CourseStructure, type CourseItem } from './utils/contentLoader';
 import EditorPage from './pages/EditorPage';
 import { clsx } from 'clsx';
-import { motion } from 'framer-motion';
-
+import { Helmet, HelmetProvider } from 'react-helmet-async';
 // Import all MDX files eagerly
 const mdxModules = import.meta.glob('./content/**/*.mdx', { eager: true });
 
@@ -134,131 +133,102 @@ function AppContent() {
   traverse(course.structure);
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-hidden relative">
-      {/* Mobile Header */}
-      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center px-4 z-20">
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-        <span className="ml-4 font-bold truncate">{course.title}</span>
-      </div>
-
-      {/* Sidebar Overlay (Mobile) */}
-      {isMobile && isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={clsx(
-          "fixed md:static inset-y-0 left-0 z-40 w-80 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 overflow-y-auto transition-transform duration-300 ease-in-out",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:w-0 md:border-r-0 md:overflow-hidden"
-        )}
-      >
-        <div className="p-6 pt-20 md:pt-6">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{course.title}</h1>
-            {!isMobile && (
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                title="Collapse menu"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <nav>
-            {course.structure.map((item, idx) => (
-              <SidebarItem key={idx} item={item} />
-            ))}
-            <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Link to="/editor" className="flex items-center py-2 px-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                <span className="mr-2">✏️</span>
-                Editor
-              </Link>
-            </div>
-          </nav>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative w-full">
-        {/* Desktop Toggle Button (when sidebar closed) */}
-        {!isMobile && !isSidebarOpen && (
+    <HelmetProvider>
+      <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-hidden relative">
+        <Helmet>
+          <title>{course.title}</title>
+          <meta name="description" content={`Learn ${course.title} interactively`} />
+        </Helmet>
+        {/* Mobile Header */}
+        <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center px-4 z-20">
           <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="absolute top-4 left-4 z-10 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-        )}
-
-        <div className={clsx(
-          "mx-auto transition-all duration-300",
-          location.pathname.startsWith('/editor')
-            ? "w-full h-full"
-            : "max-w-4xl px-4 md:px-8 py-20 md:py-12"
-        )}>
-          <MDXComponentsProvider>
-            <Routes>
-              {routes.map(route => (
-                <Route
-                  key={route.path}
-                  path={route.path}
-                  element={
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      {route.frontmatter && (
-                        <div className="mb-8 border-b border-gray-200 dark:border-gray-700 pb-6">
-                          {route.frontmatter.title && (
-                            <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">
-                              {route.frontmatter.title}
-                            </h1>
-                          )}
-                          {route.frontmatter.description && (
-                            <p className="text-xl text-gray-600 dark:text-gray-400">
-                              {route.frontmatter.description}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      <div className="prose dark:prose-invert max-w-none">
-                        <route.component />
-                      </div>
-                    </motion.div>
-                  }
-                />
-              ))}
-              <Route path="/" element={
-                <div className="text-center py-20">
-                  <h2 className="text-2xl font-semibold mb-4">Welcome to {course.title}</h2>
-                  <p className="text-gray-600 dark:text-gray-400">Select a lesson from the menu to start.</p>
-                </div>
-              } />
-              <Route path="/editor" element={<EditorPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </MDXComponentsProvider>
+          <span className="ml-4 font-bold truncate">{course.title}</span>
         </div>
-      </main>
-    </div>
+
+        {/* Sidebar */}
+        <div
+          className={clsx(
+            "fixed inset-y-0 left-0 z-30 w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          <div className="h-full flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{course.title}</h1>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {course.structure.map((item, index) => (
+                <SidebarItem key={index} item={item} />
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+              <Link
+                to="/editor"
+                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Open Editor
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className={clsx(
+          "flex-1 overflow-y-auto bg-white dark:bg-gray-900 transition-all duration-200",
+          location.pathname.startsWith('/editor') ? "w-full h-full" : "max-w-6xl mx-auto w-full p-4 md:p-8 pt-20 md:pt-8"
+        )}>
+          <Routes>
+            {routes.map(({ path, component: Component, frontmatter }) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <>
+                    <Helmet>
+                      <title>{frontmatter?.title ? `${frontmatter.title} - ${course.title}` : course.title}</title>
+                      {frontmatter?.description && <meta name="description" content={frontmatter.description} />}
+                    </Helmet>
+                    <MDXComponentsProvider>
+                      <Component />
+                    </MDXComponentsProvider>
+                  </>
+                }
+              />
+            ))}
+            <Route path="/editor" element={<EditorPage />} />
+            <Route path="/" element={<Navigate to={routes[0]?.path || '/editor'} replace />} />
+          </Routes>
+        </div>
+
+        {/* Overlay for mobile sidebar */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-20 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+      </div>
+    </HelmetProvider>
   );
 }
 

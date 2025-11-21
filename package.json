@@ -6,7 +6,7 @@
   "homepage": "https://www.kornei.de",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/generate-sitemap.js && node scripts/prerender.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -26,6 +26,7 @@
     "postcss": "^8.5.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-helmet-async": "^2.0.5",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.9.6",
     "rehype-raw": "^7.0.0",
