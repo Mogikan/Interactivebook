@@ -1,0 +1,69 @@
+# Демонстрация упражнений
+
+В этом уроке мы рассмотрим все доступные типы упражнений.
+
+## 1. Quiz (Тест)
+
+### Один правильный ответ
+<Quiz answer="2">
+  <Option>Неправильный ответ</Option>
+  <Option>Правильный ответ</Option>
+  <Option>Тоже неправильный</Option>
+</Quiz>
+
+### Несколько правильных ответов
+<Quiz answer="1,3" multiple={true}>
+  <Option>Верно</Option>
+  <Option>Неверно</Option>
+  <Option>Тоже верно</Option>
+</Quiz>
+
+## 2. FillBlanks (Заполнение пропусков)
+
+### Ввод текста
+<FillBlanks>
+  Столица Франции - [Париж], а столица Англии - [Лондон].
+</FillBlanks>
+
+### Drag & Drop
+<FillBlanks mode="drag" options={["Берлин", "Мадрид"]}>
+  Земля вращается вокруг [Солнца]. Луна вращается вокруг [Земли].
+</FillBlanks>
+
+## 3. Matching (Сопоставление)
+
+Соедините страны и их столицы:
+
+<Matching pairs={[
+  { left: "Франция", right: "Париж" },
+  { left: "Германия", right: "Берлин" },
+  { left: "Италия", right: "Рим" }
+]} />
+
+## 4. Ordering (Упорядочивание)
+
+Расставьте планеты по удаленности от Солнца:
+
+<Ordering items={[
+  "Меркурий",
+  "Венера",
+  "Земля",
+  "Марс"
+]} />
+
+## 5. Grouping (Группировка)
+
+Распределите животных по классам:
+
+<Grouping groups={{
+  "Млекопитающие": ["Кот", "Собака", "Кит"],
+  "Птицы": ["Воробей", "Орел", "Пингвин"]
+}} />
+
+## 6. Media (Медиа)
+
+### YouTube
+<Media type="youtube" src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" caption="Пример видео с YouTube" />
+
+### Аудио
+<Media type="audio" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" caption="Пример аудиофайла" />
