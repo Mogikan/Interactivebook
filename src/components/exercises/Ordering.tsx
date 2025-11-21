@@ -197,7 +197,7 @@ export const Ordering: React.FC<OrderingProps> = ({ items: correctOrder, options
                         >
                             <div className="min-h-[60px] p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-wrap gap-2 items-center">
                                 {answerItems.length === 0 && !submitted && (
-                                    <span className="text-gray-400 italic">Нажимайте на слова, чтобы составить предложение</span>
+                                    <span className="text-gray-400 italic">Click words to build the sentence</span>
                                 )}
                                 {answerItems.map((item) => (
                                     <SortableItem
@@ -243,7 +243,7 @@ export const Ordering: React.FC<OrderingProps> = ({ items: correctOrder, options
                         disabled={direction === 'horizontal' && answerItems.length === 0}
                         className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Проверить
+                        Check
                     </button>
                 ) : (
                     <>
@@ -251,13 +251,13 @@ export const Ordering: React.FC<OrderingProps> = ({ items: correctOrder, options
                             onClick={reset}
                             className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white transition-colors"
                         >
-                            Попробовать снова
+                            Try again
                         </button>
                         <span className={clsx(
                             "font-medium",
                             isCorrectOrder ? "text-green-600" : "text-red-600"
                         )}>
-                            {isCorrectOrder ? "Все верно! 🎉" : "Порядок неверный"}
+                            {isCorrectOrder ? "Correct! 🎉" : "Incorrect order"}
                         </span>
                     </>
                 )}

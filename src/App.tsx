@@ -95,11 +95,11 @@ function AppContent() {
   }, [location, isMobile]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Загрузка...</div>;
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
   if (!course) {
-    return <div className="flex items-center justify-center h-screen">Ошибка загрузки курса</div>;
+    return <div className="flex items-center justify-center h-screen">Error loading course</div>;
   }
 
   // Flatten routes for Router
@@ -170,7 +170,7 @@ function AppContent() {
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                title="Свернуть меню"
+                title="Collapse menu"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -248,8 +248,8 @@ function AppContent() {
               ))}
               <Route path="/" element={
                 <div className="text-center py-20">
-                  <h2 className="text-2xl font-semibold mb-4">Добро пожаловать в {course.title}</h2>
-                  <p className="text-gray-600 dark:text-gray-400">Выберите урок в меню слева, чтобы начать.</p>
+                  <h2 className="text-2xl font-semibold mb-4">Welcome to {course.title}</h2>
+                  <p className="text-gray-600 dark:text-gray-400">Select a lesson from the menu to start.</p>
                 </div>
               } />
               <Route path="/editor" element={<EditorPage />} />

@@ -143,7 +143,7 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                 {!submitted && !showAnswers && (
                     <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg min-h-[60px] flex flex-wrap gap-2">
                         {unplacedItems.length === 0 ? (
-                            <span className="text-gray-400 italic w-full text-center">Все элементы распределены</span>
+                            <span className="text-gray-400 italic w-full text-center">All items placed</span>
                         ) : (
                             unplacedItems.map(item => (
                                 <DraggableItem key={item.id} id={item.id} text={item.text} />
@@ -180,13 +180,13 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                             disabled={unplacedItems.length > 0}
                             className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                            Проверить
+                            Check
                         </button>
                         <button
                             onClick={handleShowAnswers}
                             className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                         >
-                            Показать ответы
+                            Show answers
                         </button>
                     </>
                 ) : (
@@ -195,21 +195,21 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                             onClick={reset}
                             className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white transition-colors"
                         >
-                            Попробовать снова
+                            Try again
                         </button>
                         {!showAnswers && (
                             <button
                                 onClick={handleShowAnswers}
                                 className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                             >
-                                Показать ответы
+                                Show answers
                             </button>
                         )}
                         <span className={clsx(
                             "font-medium ml-auto",
                             isAllCorrect ? "text-green-600" : "text-red-600"
                         )}>
-                            {isAllCorrect ? "Все верно! 🎉" : "Есть ошибки"}
+                            {isAllCorrect ? "Correct! 🎉" : "There are errors"}
                         </span>
                     </>
                 )}

@@ -130,7 +130,7 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
                     )}
                     <button
                         onClick={() => revealAnswer(currentIndex)}
-                        title={val === answer ? "Скрыть подсказку" : "Показать подсказку"}
+                        title={val === answer ? "Hide hint" : "Show hint"}
                         className="ml-0.5 p-0.5 text-gray-400 hover:text-yellow-500 transition-colors focus:outline-none"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

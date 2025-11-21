@@ -60,7 +60,7 @@ function DroppableZone({ id, text, currentItem, matchedId, direction }: { id: st
                         className="w-full py-2 px-4 text-center bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800"
                     />
                 ) : (
-                    <span className="text-sm text-gray-400">Перетащите сюда</span>
+                    <span className="text-sm text-gray-400">Drop here</span>
                 )}
             </div>
             <span className={clsx(
@@ -192,7 +192,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
 
     const draggablesColumn = (
         <div className="space-y-2">
-            <h3 className="font-medium mb-4 text-gray-500 dark:text-gray-400">Варианты</h3>
+            <h3 className="font-medium mb-4 text-gray-500 dark:text-gray-400">Options</h3>
             {visibleDraggables.map(item => (
                 <div
                     key={item.id}
@@ -206,7 +206,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                 </div>
             ))}
             {visibleDraggables.length === 0 && (
-                <div className="text-center text-gray-400 py-8 italic">Все варианты распределены</div>
+                <div className="text-center text-gray-400 py-8 italic">All options placed</div>
             )}
         </div>
     );
@@ -214,7 +214,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
     const targetsColumn = (
         <div className="space-y-2">
             <h3 className="font-medium mb-4 text-gray-500 dark:text-gray-400">
-                {direction === 'right' ? "Определения" : "Задания"}
+                {direction === 'right' ? "Definitions" : "Tasks"}
             </h3>
             {pairs.map((pair, idx) => {
                 const targetId = `target-${idx}`;
@@ -243,7 +243,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                 );
             })}
             {visibleTargets.length === 0 && (
-                <div className="text-center text-gray-400 py-8 italic">Все задания выполнены</div>
+                <div className="text-center text-gray-400 py-8 italic">All tasks completed</div>
             )}
         </div>
     );
@@ -251,7 +251,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
     const matchedPairsList = (
         <div className="mt-8 space-y-2">
             <h3 className="font-medium mb-4 text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-4">
-                Готовые пары
+                Completed pairs
             </h3>
             <div className="grid grid-cols-1 gap-2">
                 {Object.entries(matches).map(([targetId, draggableId]) => {
@@ -292,7 +292,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                                             });
                                         }}
                                         className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                        title="Убрать пару"
+                                        title="Remove pair"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -334,7 +334,7 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                         disabled={Object.keys(matches).length === 0}
                         className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                        Проверить
+                        Check
                     </button>
                 ) : (
                     <>
@@ -342,13 +342,13 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                             onClick={reset}
                             className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white transition-colors"
                         >
-                            Попробовать снова
+                            Try again
                         </button>
                         <span className={clsx(
                             "font-medium",
                             allCorrect ? "text-green-600" : "text-red-600"
                         )}>
-                            {allCorrect ? "Все верно! 🎉" : "Есть ошибки"}
+                            {allCorrect ? "Correct! 🎉" : "There are errors"}
                         </span>
                     </>
                 )}

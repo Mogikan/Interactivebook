@@ -387,7 +387,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
 
                 {mode === 'drag' && !submitted && (
                     <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
-                        <div className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Варианты:</div>
+                        <div className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Options:</div>
                         <div className="flex flex-wrap gap-2">
                             {dragItems.map(id => (
                                 <DraggableWord key={id} id={id} text={getItemText(id)} />
@@ -404,13 +404,13 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                             onClick={checkAnswers}
                             className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                         >
-                            Проверить
+                            Check
                         </button>
                         <button
                             onClick={handleShowAnswers}
                             className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                         >
-                            Показать ответы
+                            Show answers
                         </button>
                     </>
                 ) : (
@@ -419,19 +419,19 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                             onClick={retry}
                             className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white transition-colors"
                         >
-                            Исправить
+                            Fix
                         </button>
                         <button
                             onClick={reset}
                             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
                         >
-                            Сбросить
+                            Reset
                         </button>
                         <span className={clsx(
                             "font-medium ml-auto",
                             allCorrect ? "text-green-600" : "text-red-600"
                         )}>
-                            {allCorrect ? "Все верно! 🎉" : "Есть ошибки"}
+                            {allCorrect ? "Correct! 🎉" : "There are errors"}
                         </span>
                     </>
                 )}

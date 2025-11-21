@@ -117,14 +117,14 @@ export const Quiz: React.FC<QuizProps> = ({ answer, children, multiple = false, 
                         disabled={selected.length === 0}
                         className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                        Проверить
+                        Check
                     </button>
                 ) : (
                     <button
                         onClick={handleReset}
                         className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-colors"
                     >
-                        Попробовать снова
+                        Try again
                     </button>
                 )}
 
@@ -133,7 +133,7 @@ export const Quiz: React.FC<QuizProps> = ({ answer, children, multiple = false, 
                         "px-4 py-2 rounded-lg font-medium",
                         isCorrect ? "text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400" : "text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400"
                     )}>
-                        {isCorrect ? "Правильно! 🎉" : "Неправильно, попробуйте еще раз"}
+                        {isCorrect ? "Correct! 🎉" : "Incorrect, please try again"}
                     </div>
                 )}
             </div>
