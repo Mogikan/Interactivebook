@@ -209,7 +209,9 @@ function AppContent() {
                       {frontmatter?.description && <meta name="description" content={frontmatter.description} />}
                     </Helmet>
                     <MDXComponentsProvider>
-                      <Component />
+                      <article className="prose dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-img:rounded-xl">
+                        <Component />
+                      </article>
                     </MDXComponentsProvider>
                   </>
                 }
