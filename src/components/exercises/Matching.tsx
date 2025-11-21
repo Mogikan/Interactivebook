@@ -271,9 +271,13 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                             wrong && "border-red-200 bg-red-50 dark:bg-red-900/20"
                         )}>
                             <div className="flex items-center gap-4 flex-1">
-                                <span className="font-medium text-blue-600 dark:text-blue-400">{draggableText}</span>
+                                <span className="font-medium text-blue-600 dark:text-blue-400">
+                                    {direction === 'right' ? draggableText : targetText}
+                                </span>
                                 <span className="text-gray-400">→</span>
-                                <span className="text-gray-700 dark:text-gray-300">{targetText}</span>
+                                <span className="text-gray-700 dark:text-gray-300">
+                                    {direction === 'right' ? targetText : draggableText}
+                                </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 {submitted && (
