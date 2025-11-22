@@ -116,6 +116,9 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
                     ) : (
                         <input
                             type="text"
+                            autoCapitalize="off"
+                            autoComplete="off"
+                            autoCorrect="off"
                             value={inputs[currentIndex]}
                             onChange={(e) => handleInputChange(currentIndex, e.target.value)}
                             onBlur={() => handleBlur(currentIndex)}

@@ -357,6 +357,9 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                                 <span key={`${currentIndex}-${i}`} className="inline-block mx-1">
                                     <input
                                         type="text"
+                                        autoCapitalize="off"
+                                        autoComplete="off"
+                                        autoCorrect="off"
                                         value={inputs[currentIndex]}
                                         onChange={(e) => {
                                             const newInputs = [...inputs];
