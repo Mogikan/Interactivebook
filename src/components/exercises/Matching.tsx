@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
+import { useSettings } from '../../context/SettingsContext';
 
 interface MatchingProps {
     pairs: { left: string; right: string }[];
@@ -170,6 +171,18 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
         setDraggableItems(items.sort(() => Math.random() - 0.5));
     };
 
+    const { showHints } = useSettings();
+
+    const handleShowAnswers = () => {
+        const correctMatches: { [key: string]: string } = {};
+        pairs.forEach((_, idx) => {
+            correctMatches[`target-${idx}`] = `drag-${idx}`;
+        });
+        setMatches(correctMatches);
+        setSubmitted(true);
+        setSelected(null);
+    };
+
     const isCorrect = (targetIndex: number) => {
         const targetId = `target-${targetIndex}`;
         const draggableId = matches[targetId];
@@ -333,13 +346,23 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
 
             <div className="mt-8 flex gap-4 items-center">
                 {!submitted ? (
-                    <button
-                        onClick={checkAnswers}
-                        disabled={Object.keys(matches).length === 0}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        Check
-                    </button>
+                    <>
+                        <button
+                            onClick={checkAnswers}
+                            disabled={Object.keys(matches).length === 0}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Check
+                        </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
+                    </>
                 ) : (
                     <>
                         <button
@@ -348,6 +371,14 @@ export const Matching: React.FC<MatchingProps> = ({ pairs, direction = 'right' }
                         >
                             Try again
                         </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
                         <span className={clsx(
                             "font-medium",
                             allCorrect ? "text-green-600" : "text-red-600"

@@ -5,8 +5,32 @@ import { loadCourseStructure, type CourseStructure, type CourseItem } from './ut
 import EditorPage from './pages/EditorPage';
 import { clsx } from 'clsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
+
 // Import all MDX files eagerly
 const mdxModules = import.meta.glob('./content/**/*.mdx', { eager: true });
+
+function SettingsToggle() {
+  const { showHints, toggleShowHints } = useSettings();
+  return (
+    <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800">
+      <label className="flex items-center justify-between cursor-pointer group">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          Show Hints
+        </span>
+        <div className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={showHints}
+            onChange={toggleShowHints}
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+        </div>
+      </label>
+    </div>
+  );
+}
 
 function SidebarItem({ item, depth = 0 }: { item: CourseItem; depth?: number }) {
   const location = useLocation();
@@ -178,16 +202,19 @@ function AppContent() {
               ))}
             </div>
 
-            <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-              <Link
-                to="/editor"
-                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Open Editor
-              </Link>
+            <div className="mt-auto bg-gray-50 dark:bg-gray-900">
+              <SettingsToggle />
+              <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+                <Link
+                  to="/editor"
+                  className="flex items-center justify-center w-full px-4 py-2 text-sm font-bold !text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm border border-transparent"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Open Editor
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -236,8 +263,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <SettingsProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </SettingsProvider>
   );
 }

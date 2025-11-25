@@ -1,5 +1,5 @@
 export interface ExerciseComponent {
-    type: 'Quiz' | 'Ordering' | 'Matching' | 'FillBlanks' | 'Grouping' | 'Media';
+    type: 'Quiz' | 'Ordering' | 'Matching' | 'FillBlanks' | 'Grouping' | 'Media' | 'Dialogue' | 'InteractiveMedia';
     props: Record<string, any>;
     raw: string;
     startIndex: number;
@@ -87,7 +87,7 @@ export const parseExercises = (mdx: string): ExerciseComponent[] => {
     // Regex for self-closing tags: <Component ... />
     // and paired tags: <Component ...>...</Component>
 
-    const componentTypes = ['Quiz', 'Ordering', 'Matching', 'FillBlanks', 'Grouping', 'Media'];
+    const componentTypes = ['Quiz', 'Ordering', 'Matching', 'FillBlanks', 'Grouping', 'Media', 'Dialogue', 'InteractiveMedia'];
 
     componentTypes.forEach(type => {
         // Match self-closing: <Type ... />

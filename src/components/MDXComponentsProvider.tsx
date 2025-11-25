@@ -7,6 +7,8 @@ import { Matching } from './exercises/Matching';
 import { Ordering } from './exercises/Ordering';
 import { Grouping } from './exercises/Grouping';
 import { InlineBlanks } from './exercises/InlineBlanks';
+import { Dialogue } from './exercises/Dialogue';
+import { InteractiveMedia, Checkpoint } from './exercises/InteractiveMedia';
 
 const components = {
     Quiz,
@@ -17,6 +19,9 @@ const components = {
     Matching,
     Ordering,
     Grouping,
+    Dialogue,
+    InteractiveMedia,
+    Checkpoint,
     // Add other components here
 };
 

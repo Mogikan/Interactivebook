@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, ReactNode } from 'react';
 import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
+import { useSettings } from '../../context/SettingsContext';
 
 interface FillBlanksProps {
     children: React.ReactNode; // Text with {answer} or [answer]
@@ -100,7 +101,8 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
     const [inputs, setInputs] = useState<string[]>(new Array(answers.length).fill(''));
     const [submitted, setSubmitted] = useState(false);
     const [touched, setTouched] = useState<boolean[]>(new Array(answers.length).fill(false));
-    const [, setShowAnswers] = useState(false);
+    const [showAnswers, setShowAnswers] = useState(false);
+    const { showHints } = useSettings();
 
     // Generate unique IDs for all items (answers + options)
     const [allItems] = useState<{ id: string; text: string }[]>(() => {
@@ -513,16 +515,18 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                     <>
                         <button
                             onClick={checkAnswers}
-                            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm border border-transparent"
                         >
                             Check
                         </button>
-                        <button
-                            onClick={handleShowAnswers}
-                            className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                        >
-                            Show answers
-                        </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
                     </>
                 ) : (
                     <>

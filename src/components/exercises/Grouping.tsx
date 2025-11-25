@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
+import { useSettings } from '../../context/SettingsContext';
 
 interface GroupingProps {
     groups: { [groupName: string]: string[] };
@@ -78,6 +79,7 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
     const [placements, setPlacements] = useState<{ [itemId: string]: string }>({}); // itemId -> groupId
     const [submitted, setSubmitted] = useState(false);
     const [showAnswers, setShowAnswers] = useState(false);
+    const { showHints } = useSettings();
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const sensors = useSensors(
@@ -268,12 +270,14 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                         >
                             Check
                         </button>
-                        <button
-                            onClick={handleShowAnswers}
-                            className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                        >
-                            Show answers
-                        </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
                     </>
                 ) : (
                     <>
@@ -283,10 +287,10 @@ export const Grouping: React.FC<GroupingProps> = ({ groups }) => {
                         >
                             Try again
                         </button>
-                        {!showAnswers && (
+                        {!showAnswers && showHints && (
                             <button
                                 onClick={handleShowAnswers}
-                                className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
                             >
                                 Show answers
                             </button>

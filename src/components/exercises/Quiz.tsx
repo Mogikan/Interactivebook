@@ -1,4 +1,5 @@
 import React, { useState, type ReactNode } from 'react';
+import { useSettings } from '../../context/SettingsContext';
 import { clsx } from 'clsx';
 
 interface QuizProps {
@@ -37,6 +38,13 @@ export const Quiz: React.FC<QuizProps> = ({ answer, children, multiple = false, 
     const handleReset = () => {
         setSelected([]);
         setSubmitted(false);
+    };
+
+    const { showHints } = useSettings();
+
+    const handleShowAnswers = () => {
+        setSelected(correctAnswers);
+        setSubmitted(true);
     };
 
     // Recursive function to find options
@@ -112,20 +120,40 @@ export const Quiz: React.FC<QuizProps> = ({ answer, children, multiple = false, 
 
             <div className="mt-6 flex gap-4">
                 {!submitted ? (
-                    <button
-                        onClick={handleSubmit}
-                        disabled={selected.length === 0}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        Check
-                    </button>
+                    <>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={selected.length === 0}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm border border-transparent"
+                        >
+                            Check
+                        </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
+                    </>
                 ) : (
-                    <button
-                        onClick={handleReset}
-                        className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-colors"
-                    >
-                        Try again
-                    </button>
+                    <>
+                        <button
+                            onClick={handleReset}
+                            className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-colors"
+                        >
+                            Try again
+                        </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
+                    </>
                 )}
 
                 {submitted && (

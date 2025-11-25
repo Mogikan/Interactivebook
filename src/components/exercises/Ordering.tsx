@@ -3,6 +3,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { clsx } from 'clsx';
+import { useSettings } from '../../context/SettingsContext';
 
 interface OrderingProps {
     items: string[];
@@ -150,6 +151,18 @@ export const Ordering: React.FC<OrderingProps> = ({ items: correctOrder, options
         }
     };
 
+    const { showHints } = useSettings();
+
+    const handleShowAnswers = () => {
+        if (direction === 'vertical') {
+            setItems(correctOrder.map((text, idx) => ({ id: `item-${idx}`, text })));
+        } else {
+            setAnswerItems(correctOrder.map((text, idx) => ({ id: `answer-${idx}`, text })));
+            setBankItems([]);
+        }
+        setSubmitted(true);
+    };
+
     const currentItems = direction === 'vertical' ? items : answerItems;
 
     const checkOrder = (itemsToCheck: { text: string }[], targetOrder: string[]) => {
@@ -242,13 +255,23 @@ export const Ordering: React.FC<OrderingProps> = ({ items: correctOrder, options
 
             <div className="mt-6 flex gap-4 items-center">
                 {!submitted ? (
-                    <button
-                        onClick={checkAnswers}
-                        disabled={direction === 'horizontal' && answerItems.length === 0}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Check
-                    </button>
+                    <>
+                        <button
+                            onClick={checkAnswers}
+                            disabled={direction === 'horizontal' && answerItems.length === 0}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-transparent"
+                        >
+                            Check
+                        </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
+                    </>
                 ) : (
                     <>
                         <button
@@ -257,6 +280,14 @@ export const Ordering: React.FC<OrderingProps> = ({ items: correctOrder, options
                         >
                             Try again
                         </button>
+                        {showHints && (
+                            <button
+                                onClick={handleShowAnswers}
+                                className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors font-medium"
+                            >
+                                Show answers
+                            </button>
+                        )}
                         <span className={clsx(
                             "font-medium",
                             isCorrectOrder ? "text-green-600" : "text-red-600"
