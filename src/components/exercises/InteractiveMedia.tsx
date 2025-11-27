@@ -43,7 +43,7 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
     title,
     children
 }) => {
-    const playerRef = useRef<any>(null);
+    const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -62,7 +62,6 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
         .sort((a, b) => a.time - b.time);
 
     const togglePlay = () => {
-        console.log('InteractiveMedia: togglePlay called, current isPlaying:', isPlaying);
         setIsPlaying(!isPlaying);
     };
 
@@ -84,27 +83,24 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
 
     const handleProgress = (state: { played: number; playedSeconds: number; loaded: number; loadedSeconds: number }) => {
         // We only want to update time slider if we are not currently seeking
-        if (seeking.current) return;
+        if (seeking.current) {
+            return;
+        }
 
         const time = state.playedSeconds;
         if (!Number.isFinite(time)) return;
+
         setCurrentTime(time);
         checkCheckpoints(time);
     };
 
-    const handleDuration = (duration?: number) => {
-        if (typeof duration === 'number' && Number.isFinite(duration)) {
-            setDuration(duration);
-            return;
-        }
-
-        // Fallback to reading from player ref if no argument provided (like in the sample)
+    const handleDuration = () => {
         const player = playerRef.current;
-        if (player) {
-            const d = player.getDuration ? player.getDuration() : (player.duration || 0);
-            if (Number.isFinite(d) && d > 0) {
-                setDuration(d);
-            }
+        if (!player) return;
+
+        const d = player.duration;
+        if (Number.isFinite(d) && d > 0) {
+            setDuration(d);
         }
     };
 
@@ -133,21 +129,21 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
     };
 
     const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement> | React.TouchEvent<HTMLInputElement>) => {
-        seeking.current = false;
         const target = e.target as HTMLInputElement;
         const time = parseFloat(target.value);
 
+        seeking.current = false;
+
         const player = playerRef.current;
         if (player) {
-            if (player instanceof HTMLAudioElement) {
-                player.currentTime = time;
-            } else if (typeof player.seekTo === 'function') {
-                player.seekTo(time, 'seconds');
-            } else if (player.player && typeof player.player.seekTo === 'function') {
-                player.player.seekTo(time, 'seconds');
-            }
+            player.currentTime = time;
         }
     };
+
+    const setPlayerRef = React.useCallback((player: HTMLVideoElement | HTMLAudioElement) => {
+        if (!player) return;
+        playerRef.current = player;
+    }, []);
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -204,7 +200,7 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                     ) : (
                         <ReactPlayer
                             key={src} // Force remount on src change
-                            ref={playerRef}
+                            ref={setPlayerRef}
                             src={src}
                             playing={isPlaying}
                             controls={false}
@@ -224,9 +220,9 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                                 }
                             }}
                             onEnded={() => setIsPlaying(false)}
-                            onReady={() => console.log('InteractiveMedia: Player Ready')}
+                            onReady={() => { }}
                             onError={(e) => console.error('InteractiveMedia: Player Error', e)}
-                            onStart={() => console.log('InteractiveMedia: Player Started')}
+                            onStart={() => { }}
                             config={{
                                 youtube: {
                                     playerVars: {
@@ -304,13 +300,8 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                         <button onClick={() => {
                             const player = playerRef.current;
                             if (player) {
-                                if (player instanceof HTMLAudioElement) {
-                                    player.currentTime = 0;
-                                } else if (typeof player.seekTo === 'function') {
-                                    player.seekTo(0);
-                                } else if (player.player && typeof player.player.seekTo === 'function') {
-                                    player.player.seekTo(0);
-                                }
+                                player.currentTime = 0;
+                                setCurrentTime(0);
                             }
                         }} className="hover:text-blue-400 transition-colors p-1" title="Restart">
                             <RotateCcw size={20} />
