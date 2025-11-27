@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { Volume2, VolumeX, RotateCcw, ChevronRight } from 'lucide-react';
 
+// New interface for children-based structure
+export interface MessageProps {
+    speaker: string;
+    side?: 'left' | 'right';
+    voice?: string;
+    children: ReactNode;
+}
+
+export const Message: React.FC<MessageProps> = ({ children }) => {
+    return <>{children}</>;
+};
+
+// Legacy interface
 interface DialogueLine {
     speaker: string;
     text: string;
@@ -10,17 +23,53 @@ interface DialogueLine {
 }
 
 interface DialogueProps {
-    lines: DialogueLine[];
+    lines?: DialogueLine[]; // Optional now
+    children?: ReactNode;   // Support for nested Message components
     autoPlay?: boolean;
 }
 
-export const Dialogue: React.FC<DialogueProps> = ({ lines, autoPlay = false }) => {
+// Helper to extract text from ReactNode for TTS
+const extractText = (node: ReactNode): string => {
+    if (typeof node === 'string') return node;
+    if (typeof node === 'number') return node.toString();
+    if (Array.isArray(node)) return node.map(extractText).join(' ');
+    if (React.isValidElement(node)) {
+        // If it's a known interactive component, maybe skip or say something generic?
+        // For now, try to extract text from children
+        return extractText((node as React.ReactElement<{ children: ReactNode }>).props.children);
+    }
+    return '';
+};
+
+export const Dialogue: React.FC<DialogueProps> = ({ lines: propLines, children, autoPlay = false }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
     const [speakerVoices, setSpeakerVoices] = useState<{ [speaker: string]: SpeechSynthesisVoice }>({});
     const [isMuted, setIsMuted] = useState(false);
 
     const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+    // Normalize lines from props OR children
+    const lines = React.useMemo(() => {
+        if (propLines && propLines.length > 0) {
+            return propLines.map(l => ({
+                ...l,
+                content: l.text // Map text to content for unified rendering
+            }));
+        }
+
+        return React.Children.toArray(children)
+            .filter((child): child is React.ReactElement<MessageProps> => {
+                return React.isValidElement(child) && (child.type === Message || (child.type as any).name === 'Message');
+            })
+            .map(child => ({
+                speaker: child.props.speaker,
+                side: child.props.side,
+                voice: child.props.voice,
+                text: extractText(child.props.children), // Extract text for TTS
+                content: child.props.children // Keep full content for rendering
+            }));
+    }, [propLines, children]);
 
     // Load voices
     useEffect(() => {
@@ -42,7 +91,7 @@ export const Dialogue: React.FC<DialogueProps> = ({ lines, autoPlay = false }) =
 
     // Assign voices to speakers
     useEffect(() => {
-        if (voices.length === 0) return;
+        if (voices.length === 0 || lines.length === 0) return;
 
         const uniqueSpeakers = Array.from(new Set(lines.map(l => l.speaker)));
         const assignments: { [speaker: string]: SpeechSynthesisVoice } = {};
@@ -93,7 +142,7 @@ export const Dialogue: React.FC<DialogueProps> = ({ lines, autoPlay = false }) =
     }, [voices, lines]);
 
     const speak = (text: string, speaker: string, preferredVoiceName?: string) => {
-        if (isMuted) return;
+        if (isMuted || !text) return;
 
         window.speechSynthesis.cancel(); // Stop previous
 
@@ -209,7 +258,7 @@ export const Dialogue: React.FC<DialogueProps> = ({ lines, autoPlay = false }) =
             {/* Chat Area */}
             <div
                 className="p-6 space-y-6 min-h-[300px] max-h-[500px] overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50"
-                onClick={() => handleNext()} // Click anywhere to advance
+            // Remove onClick to advance, as it might interfere with interactive content
             >
                 {lines.slice(0, currentIndex + 1).map((line, idx) => {
                     const isLeft = line.side === 'left' || (!line.side && idx % 2 === 0);
@@ -235,8 +284,8 @@ export const Dialogue: React.FC<DialogueProps> = ({ lines, autoPlay = false }) =
                                         : "bg-blue-600 text-white rounded-tr-none"
                                 )}
                             >
-                                {line.text}
-                                {isLast && !isMuted && (
+                                {line.content}
+                                {isLast && !isMuted && line.text && (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();

@@ -11,7 +11,7 @@ import { InlineBlanks } from '../exercises/InlineBlanks';
 import { Grouping } from '../exercises/Grouping';
 import { Media } from '../exercises/Media';
 import { InteractiveMedia, Checkpoint } from '../exercises/InteractiveMedia';
-import { Dialogue } from '../exercises/Dialogue';
+import { Dialogue, Message } from '../exercises/Dialogue';
 import { QuizWizard } from './wizards/QuizWizard';
 import { OrderingWizard } from './wizards/OrderingWizard';
 import { MatchingWizard } from './wizards/MatchingWizard';
@@ -243,7 +243,7 @@ export const MDXEditor: React.FC<MDXEditorProps> = ({ value, onChange, className
                     'Dialogue'
                 ];
 
-                let processedMdx = value;
+                let processedMdx = value || '';
                 componentsToClean.forEach(component => {
                     processedMdx = cleanBlock(processedMdx, component);
                 });
@@ -325,6 +325,8 @@ export const MDXEditor: React.FC<MDXEditorProps> = ({ value, onChange, className
             option: Option,
             Dialogue: createEditable(Dialogue, 'Dialogue'),
             dialogue: createEditable(Dialogue, 'Dialogue'), // Support lowercase
+            Message: Message,
+            message: Message, // Support lowercase
             InteractiveMedia: createEditable(InteractiveMedia, 'InteractiveMedia'),
             interactivemedia: createEditable(InteractiveMedia, 'InteractiveMedia'), // Support lowercase
             Checkpoint: Checkpoint,

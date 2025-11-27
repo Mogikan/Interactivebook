@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Play, ArrowUp, ArrowDown, Volume2, Save } from 'lucide-react';
+import { X, Plus, Trash2, Play, ArrowUp, ArrowDown, Volume2, Save, Edit } from 'lucide-react';
 import type { ExerciseComponent } from '../../../utils/mdxParser';
+import { MDXEditor } from '../../editor/MDXEditor';
 
 interface DialogueWizardProps {
     component: ExerciseComponent;
@@ -10,7 +11,7 @@ interface DialogueWizardProps {
 
 interface DialogueLine {
     speaker: string;
-    text: string;
+    text: string; // Markdown content
     side: 'left' | 'right';
     voice?: string;
 }
@@ -20,45 +21,80 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
     const [speakers, setSpeakers] = useState<{ name: string; defaultSide: 'left' | 'right'; defaultVoice?: string }[]>([]);
     const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
 
+    // Editor state
+    const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
+    const [tempContent, setTempContent] = useState('');
+
+    // Helper to parse props string like: answer="2" multiple={true}
+    const parsePropsString = (propsString: string): Record<string, any> => {
+        const props: Record<string, any> = {};
+        const regex = /(\w+)=(?:["']([^"']*)["']|{([^}]*)})/g;
+        let match;
+        while ((match = regex.exec(propsString)) !== null) {
+            const key = match[1];
+            const value = match[2] || match[3];
+            props[key] = value;
+        }
+        return props;
+    };
+
     // Load initial data
     useEffect(() => {
-        if (component.props.lines) {
-            // Parse existing lines
-            // The props might come as a string (if parsed from MDX raw) or object
-            // For simplicity, we assume we might need to parse or it's already an object if coming from our parser
-            // But our parser usually returns props as strings or simple values. 
-            // Complex objects like arrays might need careful handling if they are passed as strings.
-            // However, for the wizard, we usually reconstruct from the component structure.
+        const loadData = () => {
+            let initialLines: DialogueLine[] = [];
 
-            // If we are editing, we try to use the props. 
-            // If the parser handled the array correctly, good. If not, we might need to parse the raw string manually or rely on the parser's capability.
-            // Assuming the parser gives us a JS object for 'lines' if it was a JSON-like prop, OR we might need to eval it.
-            // Let's assume for now we get a proper array or we default to empty.
+            // 1. Try parsing children (Message components)
+            if (component.children && component.children.trim().length > 0) {
+                const messageRegex = /<Message(\s+[^>]*)?>([\s\S]*?)<\/Message>/g;
+                let match;
+                while ((match = messageRegex.exec(component.children)) !== null) {
+                    const propsStr = match[1] || '';
+                    const content = match[2].trim(); // Inner MDX content
+                    const props = parsePropsString(propsStr);
 
-            const rawLines = component.props.lines;
-            if (Array.isArray(rawLines)) {
-                setLines(rawLines as DialogueLine[]);
+                    initialLines.push({
+                        speaker: props.speaker || 'Unknown',
+                        text: content,
+                        side: (props.side as 'left' | 'right') || 'left',
+                        voice: props.voice
+                    });
+                }
+            }
+            // 2. Fallback to legacy 'lines' prop
+            else if (component.props.lines && Array.isArray(component.props.lines)) {
+                initialLines = component.props.lines as DialogueLine[];
+            }
 
-                // Extract speakers
-                const uniqueSpeakers = Array.from(new Set((rawLines as DialogueLine[]).map(l => l.speaker)));
-                const initialSpeakers = uniqueSpeakers.map(name => ({
-                    name,
-                    defaultSide: (rawLines.find(l => l.speaker === name)?.side || 'left') as 'left' | 'right',
-                    defaultVoice: rawLines.find(l => l.speaker === name)?.voice
-                }));
+            // If no data found, set defaults
+            if (initialLines.length === 0) {
+                initialLines = [
+                    { speaker: 'Anna', text: 'Hallo!', side: 'left' },
+                    { speaker: 'Markus', text: 'Hi! Wie geht es dir?', side: 'right' }
+                ];
+            }
+
+            setLines(initialLines);
+
+            // Extract speakers from lines
+            const uniqueSpeakers = Array.from(new Set(initialLines.map(l => l.speaker)));
+            const initialSpeakers = uniqueSpeakers.map(name => ({
+                name,
+                defaultSide: (initialLines.find(l => l.speaker === name)?.side || 'left') as 'left' | 'right',
+                defaultVoice: initialLines.find(l => l.speaker === name)?.voice
+            }));
+
+            // Ensure at least default speakers exist if none found
+            if (initialSpeakers.length === 0) {
+                setSpeakers([
+                    { name: 'Anna', defaultSide: 'left' },
+                    { name: 'Markus', defaultSide: 'right' }
+                ]);
+            } else {
                 setSpeakers(initialSpeakers);
             }
-        } else {
-            // Default start
-            setSpeakers([
-                { name: 'Anna', defaultSide: 'left' },
-                { name: 'Markus', defaultSide: 'right' }
-            ]);
-            setLines([
-                { speaker: 'Anna', text: 'Hallo!', side: 'left' },
-                { speaker: 'Markus', text: 'Hi! Wie geht es dir?', side: 'right' }
-            ]);
-        }
+        };
+
+        loadData();
 
         // Load voices
         const loadVoices = () => {
@@ -76,22 +112,26 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
 
     const handleAddLine = () => {
         const lastSpeaker = lines.length > 0 ? lines[lines.length - 1].speaker : speakers[0]?.name;
-        const nextSpeaker = speakers.find(s => s.name !== lastSpeaker) || speakers[0];
+        const nextSpeaker = speakers.find(s => s.name !== lastSpeaker) || speakers[0] || { name: 'Speaker', defaultSide: 'left' };
 
-        setLines([...lines, {
+        const newLine: DialogueLine = {
             speaker: nextSpeaker.name,
             text: '',
-            side: nextSpeaker.defaultSide,
+            side: nextSpeaker.defaultSide as 'left' | 'right',
             voice: nextSpeaker.defaultVoice
-        }]);
+        };
+
+        setLines([...lines, newLine]);
+
+        // Automatically open editor for new line
+        setEditingLineIndex(lines.length);
+        setTempContent('');
     };
 
     const updateLine = (index: number, field: keyof DialogueLine, value: any) => {
         const newLines = [...lines];
         newLines[index] = { ...newLines[index], [field]: value };
 
-        // If speaker changes, update side/voice defaults if not manually set? 
-        // For now, just update the field.
         if (field === 'speaker') {
             const speakerConfig = speakers.find(s => s.name === value);
             if (speakerConfig) {
@@ -121,13 +161,16 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
 
     const previewLine = (line: DialogueLine) => {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(line.text);
+        // Strip markdown/html tags for simple preview if possible, or just speak raw text
+        // For better experience, we might want a helper to strip tags
+        const textToSpeak = (line.text || '').replace(/<[^>]*>/g, '');
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
         utterance.lang = 'de-DE';
         if (line.voice) {
             const voice = availableVoices.find(v => v.name === line.voice);
             if (voice) utterance.voice = voice;
         } else {
-            // Try to find a voice matching the speaker config
             const speakerConfig = speakers.find(s => s.name === line.speaker);
             if (speakerConfig?.defaultVoice) {
                 const voice = availableVoices.find(v => v.name === speakerConfig.defaultVoice);
@@ -137,15 +180,36 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
         window.speechSynthesis.speak(utterance);
     };
 
+    const openEditor = (index: number) => {
+        setEditingLineIndex(index);
+        setTempContent(lines[index].text || '');
+    };
+
+    const saveEditorContent = () => {
+        if (editingLineIndex !== null) {
+            updateLine(editingLineIndex, 'text', tempContent);
+            setEditingLineIndex(null);
+            setTempContent('');
+        }
+    };
+
     const handleSave = () => {
-        // Clean up lines (remove empty ones?)
-        // Construct the component
+        // Generate children string
+        const childrenStr = lines.map(line => {
+            const props = [
+                `speaker="${line.speaker}"`,
+                `side="${line.side}"`,
+                line.voice ? `voice="${line.voice}"` : ''
+            ].filter(Boolean).join(' ');
+
+            return `  <Message ${props}>\n    ${line.text}\n  </Message>`;
+        }).join('\n');
+
         const newComponent: ExerciseComponent = {
             ...component,
             type: 'Dialogue',
-            props: {
-                lines: lines
-            }
+            props: {}, // Clear legacy props
+            children: childrenStr
         };
         onSave(newComponent);
     };
@@ -164,18 +228,10 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
 
     const updateSpeakerName = (index: number, newName: string) => {
         const oldName = speakers[index].name;
-        if (!newName || (newName !== oldName && speakers.find(s => s.name === newName))) {
-            // Prevent empty names or duplicates (simple validation)
-            // For now just don't update if duplicate, or maybe allow but it might be confusing.
-            // Let's just allow typing and maybe show error if duplicate? 
-            // Simplest: just update. If duplicate, it merges identity effectively.
-        }
-
         const newSpeakers = [...speakers];
         newSpeakers[index] = { ...newSpeakers[index], name: newName };
         setSpeakers(newSpeakers);
 
-        // Update all lines that used the old name
         const newLines = lines.map(line => {
             if (line.speaker === oldName) {
                 return { ...line, speaker: newName };
@@ -191,8 +247,6 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
         newSpeakers[index] = { ...newSpeakers[index], [field]: value };
         setSpeakers(newSpeakers);
 
-        // Automatically update all existing lines for this speaker to match the new default
-        // This ensures that if the user changes the voice in the config, it applies to the whole dialogue
         if (field === 'defaultVoice' || field === 'defaultSide') {
             const targetField = field === 'defaultVoice' ? 'voice' : 'side';
             const newLines = lines.map(line => {
@@ -206,13 +260,12 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
     };
 
     const removeSpeaker = (index: number) => {
-        // Optional: prevent removing if lines exist? Or just let it happen (lines will keep the name but it won't be in list)
-        // Better: if removing, maybe warn? For now, just remove.
         setSpeakers(speakers.filter((_, i) => i !== index));
     };
 
     return (
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] w-full">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] w-full relative">
+            {/* Main Wizard Content */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
                 <h2 className="text-lg font-bold flex items-center gap-2">
                     <Volume2 className="text-blue-600" />
@@ -337,13 +390,18 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
                                         </button>
                                     </div>
 
-                                    <textarea
-                                        value={line.text}
-                                        onChange={(e) => updateLine(idx, 'text', e.target.value)}
-                                        className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
-                                        rows={2}
-                                        placeholder="Enter dialogue text..."
-                                    />
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 p-2 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 min-h-[60px] max-h-[100px] overflow-hidden text-sm text-gray-600 dark:text-gray-300">
+                                            {line.text || <span className="text-gray-400 italic">Empty content...</span>}
+                                        </div>
+                                        <button
+                                            onClick={() => openEditor(idx)}
+                                            className="px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg transition-colors flex flex-col items-center justify-center gap-1 text-xs font-medium"
+                                        >
+                                            <Edit size={16} />
+                                            Edit
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -374,6 +432,36 @@ export const DialogueWizard: React.FC<DialogueWizardProps> = ({ component, onSav
                     Save Dialogue
                 </button>
             </div>
+
+            {/* Content Editor Modal */}
+            {editingLineIndex !== null && (
+                <div className="absolute inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col animate-in fade-in duration-200">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                        <h3 className="font-bold text-lg">Edit Message Content</h3>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setEditingLineIndex(null)}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={saveEditorContent}
+                                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                        <MDXEditor
+                            value={tempContent}
+                            onChange={setTempContent}
+                            className="h-full"
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
