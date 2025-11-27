@@ -434,31 +434,31 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                                     isCorrect && "bg-green-100 dark:bg-green-900/30",
                                     isWrong && "bg-red-100 dark:bg-red-900/30"
                                 )}>
-                                    <div onClick={() => handleDropZoneClick(dropId)}>
+                                    <span onClick={() => handleDropZoneClick(dropId)} className="inline-block cursor-pointer">
                                         <DropZone
                                             id={dropId}
                                             current={droppedItemId}
                                             text={droppedText}
                                             disabled={submitted}
                                         />
-                                    </div>
+                                    </span>
                                     {/* Options Menu */}
                                     {activeDropMenu === dropId && !submitted && (
-                                        <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto">
-                                            <div className="text-xs font-semibold text-gray-500 mb-2 px-2">Select word:</div>
+                                        <span className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto block text-left">
+                                            <span className="text-xs font-semibold text-gray-500 mb-2 px-2 block">Select word:</span>
                                             {dragItems.map(itemId => (
                                                 <button
                                                     key={itemId}
                                                     onClick={() => handleMenuOptionClick(dropId, itemId)}
-                                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300"
+                                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 block"
                                                 >
                                                     {getItemText(itemId)}
                                                 </button>
                                             ))}
                                             {dragItems.length === 0 && (
-                                                <div className="text-xs text-gray-400 px-2 italic">No words available</div>
+                                                <span className="text-xs text-gray-400 px-2 italic block">No words available</span>
                                             )}
-                                        </div>
+                                        </span>
                                     )}
                                 </span>
                             );
@@ -497,13 +497,13 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                         <div className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Options:</div>
                         <div className="flex flex-wrap gap-2">
                             {dragItems.map(id => (
-                                <div key={id} onClick={() => handleWordClick(id)}>
+                                <span key={id} onClick={() => handleWordClick(id)} className="inline-block">
                                     <DraggableWord
                                         id={id}
                                         text={getItemText(id)}
                                         className={selectedId === id ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900" : ""}
                                     />
-                                </div>
+                                </span>
                             ))}
                         </div>
                     </div>

@@ -6,6 +6,7 @@ import EditorPage from './pages/EditorPage';
 import { clsx } from 'clsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
+import { NextLessonNavigation } from './components/NextLessonNavigation';
 
 // Import all MDX files eagerly
 const mdxModules = import.meta.glob('./content/**/*.mdx', { eager: true });
@@ -238,6 +239,7 @@ function AppContent() {
                     <MDXComponentsProvider>
                       <article className="prose dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-img:rounded-xl">
                         <Component />
+                        <NextLessonNavigation currentPath={path} structure={course.structure} />
                       </article>
                     </MDXComponentsProvider>
                   </>
