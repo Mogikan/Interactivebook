@@ -66,10 +66,9 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
         setIsPlaying(!isPlaying);
     };
 
-    const handleProgress = (state: { played: number; playedSeconds: number; loaded: number; loadedSeconds: number }) => {
-        const time = state.playedSeconds;
-        setCurrentTime(time);
+    const seeking = useRef(false);
 
+    const checkCheckpoints = (time: number) => {
         // Check for checkpoints
         const hitCheckpoint = checkpoints.find(cp =>
             time >= cp.time &&
@@ -83,8 +82,30 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
         }
     };
 
-    const handleDuration = (duration: number) => {
-        setDuration(duration);
+    const handleProgress = (state: { played: number; playedSeconds: number; loaded: number; loadedSeconds: number }) => {
+        // We only want to update time slider if we are not currently seeking
+        if (seeking.current) return;
+
+        const time = state.playedSeconds;
+        if (!Number.isFinite(time)) return;
+        setCurrentTime(time);
+        checkCheckpoints(time);
+    };
+
+    const handleDuration = (duration?: number) => {
+        if (typeof duration === 'number' && Number.isFinite(duration)) {
+            setDuration(duration);
+            return;
+        }
+
+        // Fallback to reading from player ref if no argument provided (like in the sample)
+        const player = playerRef.current;
+        if (player) {
+            const d = player.getDuration ? player.getDuration() : (player.duration || 0);
+            if (Number.isFinite(d) && d > 0) {
+                setDuration(d);
+            }
+        }
     };
 
     const handleContinue = () => {
@@ -96,14 +117,26 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
     };
 
     const formatTime = (time: number) => {
+        if (!Number.isFinite(time) || isNaN(time)) return "0:00";
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
-    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleSeekMouseDown = () => {
+        seeking.current = true;
+    };
+
+    const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const time = parseFloat(e.target.value);
         setCurrentTime(time);
+    };
+
+    const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement> | React.TouchEvent<HTMLInputElement>) => {
+        seeking.current = false;
+        const target = e.target as HTMLInputElement;
+        const time = parseFloat(target.value);
+
         const player = playerRef.current;
         if (player) {
             if (player instanceof HTMLAudioElement) {
@@ -137,8 +170,6 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
 
     if (!isMounted) return <div className="p-4 text-gray-500">Loading Player...</div>;
 
-    console.log('InteractiveMedia: Rendering with src:', src);
-
     return (
         <div className="my-8 max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-800">
             {title && (
@@ -162,6 +193,7 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                             onTimeUpdate={(e) => {
                                 const time = e.currentTarget.currentTime;
                                 setCurrentTime(time);
+                                checkCheckpoints(time);
                                 handleProgress({ played: time / (duration || 1), playedSeconds: time, loaded: 0, loadedSeconds: 0 });
                             }}
                             onDurationChange={(e) => setDuration(e.currentTarget.duration)}
@@ -170,22 +202,31 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                             onPause={() => setIsPlaying(false)}
                         />
                     ) : (
-                        /* @ts-ignore - ReactPlayer types seem to be missing url prop in this version */
                         <ReactPlayer
                             key={src} // Force remount on src change
                             ref={playerRef}
-                            url={src}
+                            src={src}
                             playing={isPlaying}
                             controls={false}
                             width="100%"
                             height="100%"
                             className="react-player"
+                            progressInterval={100}
                             onProgress={handleProgress as any}
+                            onDuration={handleDuration}
+                            onDurationChange={handleDuration}
+                            // @ts-ignore - onTimeUpdate is passed to native video element
+                            onTimeUpdate={(e) => {
+                                if (!seeking.current && e.target && typeof (e.target as any).currentTime === 'number') {
+                                    const time = (e.target as any).currentTime;
+                                    setCurrentTime(time);
+                                    checkCheckpoints(time);
+                                }
+                            }}
                             onEnded={() => setIsPlaying(false)}
                             onReady={() => console.log('InteractiveMedia: Player Ready')}
                             onError={(e) => console.error('InteractiveMedia: Player Error', e)}
                             onStart={() => console.log('InteractiveMedia: Player Started')}
-                            style={{ aspectRatio: '16/9' }}
                             config={{
                                 youtube: {
                                     playerVars: {
@@ -242,8 +283,12 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                             min={0}
                             max={duration || 100}
                             value={currentTime}
-                            onChange={handleSeek}
+                            onChange={handleSeekChange}
                             className="absolute inset-0 w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:rounded-full hover:[&::-webkit-slider-thumb]:scale-125 transition-all z-10"
+                            onMouseDown={handleSeekMouseDown}
+                            onMouseUp={handleSeekMouseUp}
+                            onTouchStart={handleSeekMouseDown}
+                            onTouchEnd={handleSeekMouseUp}
                         />
                     </div>
 
