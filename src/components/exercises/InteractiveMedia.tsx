@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, type ReactNode } from 'react';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Play, Pause, RotateCcw, Maximize, Minimize } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactPlayer from 'react-player';
 
@@ -44,11 +44,13 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
     children
 }) => {
     const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [activeCheckpoint, setActiveCheckpoint] = useState<{ time: number, content: ReactNode } | null>(null);
     const [completedCheckpoints, setCompletedCheckpoints] = useState<Set<number>>(new Set());
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     // Parse checkpoints from children
     const checkpoints = React.Children.toArray(children)
@@ -64,6 +66,29 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
     const togglePlay = () => {
         setIsPlaying(!isPlaying);
     };
+
+    const toggleFullscreen = () => {
+        if (!containerRef.current) return;
+
+        if (!document.fullscreenElement) {
+            containerRef.current.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        };
+    }, []);
 
     const seeking = useRef(false);
 
@@ -110,6 +135,32 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
             setActiveCheckpoint(null);
             setIsPlaying(true);
         }
+    };
+
+    const handleReplay = () => {
+        if (!activeCheckpoint) return;
+
+        const currentIndex = checkpoints.findIndex(cp => cp.time === activeCheckpoint.time);
+        let targetTime = 0;
+
+        if (currentIndex > 0) {
+            // Go to previous checkpoint time + 1s buffer to avoid triggering it again
+            // The window for triggering is [time, time + 1)
+            targetTime = checkpoints[currentIndex - 1].time + 1.1;
+        }
+
+        // Ensure we don't jump past the current checkpoint (in case segments are super short)
+        if (targetTime >= activeCheckpoint.time) {
+            targetTime = Math.max(0, activeCheckpoint.time - 5); // Fallback: rewind 5 seconds
+        }
+
+        const player = playerRef.current;
+        if (player) {
+            player.currentTime = targetTime;
+        }
+        setCurrentTime(targetTime);
+        setActiveCheckpoint(null);
+        setIsPlaying(true);
     };
 
     const formatTime = (time: number) => {
@@ -174,11 +225,14 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                 </div>
             )}
 
-            <div className="group bg-black grid grid-cols-1 relative">
+            <div
+                ref={containerRef}
+                className="group bg-black grid grid-cols-1 relative"
+            >
                 {/* Media Element */}
                 <div className={clsx(
                     "col-start-1 row-start-1 flex items-center justify-center w-full",
-                    type === 'video' ? "min-h-[300px]" : "min-h-[120px] bg-gray-900"
+                    type === 'video' ? (isFullscreen ? "h-screen" : "min-h-[300px]") : "min-h-[120px] bg-gray-900"
                 )}>
                     {type === 'audio' ? (
                         <audio
@@ -207,6 +261,7 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                             width="100%"
                             height="100%"
                             className="react-player"
+                            // @ts-ignore - progressInterval exists in runtime but missing in types
                             progressInterval={100}
                             onProgress={handleProgress as any}
                             onDuration={handleDuration}
@@ -229,6 +284,9 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                                         showinfo: 0,
                                         controls: 0,
                                         modestbranding: 1,
+                                        rel: 0,
+                                        iv_load_policy: 3,
+                                        fs: 0,
                                         origin: typeof window !== 'undefined' ? window.location.origin : undefined
                                     }
                                 } as any
@@ -297,15 +355,28 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                                 {formatTime(currentTime)} / {formatTime(duration)}
                             </span>
                         </div>
-                        <button onClick={() => {
-                            const player = playerRef.current;
-                            if (player) {
-                                player.currentTime = 0;
-                                setCurrentTime(0);
-                            }
-                        }} className="hover:text-blue-400 transition-colors p-1" title="Restart">
-                            <RotateCcw size={20} />
-                        </button>
+
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => {
+                                const player = playerRef.current;
+                                if (player) {
+                                    player.currentTime = 0;
+                                    setCurrentTime(0);
+                                }
+                            }} className="hover:text-blue-400 transition-colors p-1" title="Restart">
+                                <RotateCcw size={20} />
+                            </button>
+
+                            {type === 'video' && (
+                                <button
+                                    onClick={toggleFullscreen}
+                                    className="hover:text-blue-400 transition-colors p-1"
+                                    title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                                >
+                                    {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -316,13 +387,22 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                             <div className="mb-6 text-gray-900 dark:text-gray-100">
                                 {activeCheckpoint.content}
                             </div>
-                            <button
-                                onClick={handleContinue}
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
-                            >
-                                <span>Continue</span>
-                                <Play size={18} />
-                            </button>
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={handleReplay}
+                                    className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl font-semibold shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                                >
+                                    <RotateCcw size={18} />
+                                    <span>Replay</span>
+                                </button>
+                                <button
+                                    onClick={handleContinue}
+                                    className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                                >
+                                    <span>Continue</span>
+                                    <Play size={18} />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -330,4 +410,3 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
         </div>
     );
 };
-
