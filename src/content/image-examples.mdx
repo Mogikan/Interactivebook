@@ -1,0 +1,47 @@
+# Image Usage Examples
+
+This file demonstrates how to use images in MDX content.
+
+## Basic Image
+
+![Example Image](/images/shared/example.jpg)
+
+## Image with Custom Size
+
+<img src="/images/c1/lesson1/diagram.png" alt="Grammar Diagram" width="600" />
+
+## Using Media Component
+
+<Media src="/images/b1/lesson2/photo.jpg" alt="Example photo" />
+
+## Multiple Images in a Row
+
+<div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+  <img src="/images/a1/lesson1/image1.jpg" alt="Image 1" width="200" />
+  <img src="/images/a1/lesson1/image2.jpg" alt="Image 2" width="200" />
+  <img src="/images/a1/lesson1/image3.jpg" alt="Image 3" width="200" />
+</div>
+
+## Image in Quiz
+
+<Quiz answer="2">
+  Welches Bild zeigt einen Apfel?
+  
+  <Option>
+    <img src="/images/shared/banana.jpg" alt="Banana" width="150" />
+  </Option>
+  <Option>
+    <img src="/images/shared/apple.jpg" alt="Apple" width="150" />
+  </Option>
+  <Option>
+    <img src="/images/shared/orange.jpg" alt="Orange" width="150" />
+  </Option>
+</Quiz>
+
+## Responsive Image
+
+<picture>
+  <source media="(max-width: 600px)" srcSet="/images/c1/lesson1/mobile.jpg" />
+  <source media="(min-width: 601px)" srcSet="/images/c1/lesson1/desktop.jpg" />
+  <img src="/images/c1/lesson1/desktop.jpg" alt="Responsive example" />
+</picture>

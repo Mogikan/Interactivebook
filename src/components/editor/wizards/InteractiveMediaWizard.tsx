@@ -25,7 +25,7 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
     const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
 
     // Media state
-    const playerRef = useRef<any>(null);
+    const playerRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -66,15 +66,27 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
         setCurrentTime(state.playedSeconds);
     };
 
-    const handleDuration = (duration: number) => {
-        setDuration(duration);
+    const handleDuration = () => {
+        const player = playerRef.current;
+        if (!player) return;
+
+        const d = player.duration;
+        if (Number.isFinite(d) && d > 0) {
+            setDuration(d);
+        }
     };
+
+    const setPlayerRef = React.useCallback((player: HTMLVideoElement | HTMLAudioElement | null) => {
+        if (!player) return;
+        playerRef.current = player;
+    }, []);
 
     const togglePlay = () => {
         setIsPlaying(!isPlaying);
     };
 
     const formatTime = (time: number) => {
+        if (!Number.isFinite(time) || isNaN(time)) return "00:00,000";
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         const ms = Math.floor((time % 1) * 1000);
@@ -82,17 +94,28 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
     };
 
     const formatTimeShort = (time: number) => {
+        if (!Number.isFinite(time) || isNaN(time)) return "0:00";
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
     const addCheckpoint = () => {
+        // Pause video before opening editor
+        setIsPlaying(false);
+
         const timeStr = formatTime(currentTime);
-        setCheckpoints([...checkpoints, {
+        const newCheckpoint = {
             time: timeStr,
             content: '<Quiz answer="1">\n  Question?\n  <Option>Answer</Option>\n</Quiz>'
-        }]);
+        };
+        const newCheckpoints = [...checkpoints, newCheckpoint];
+        setCheckpoints(newCheckpoints);
+
+        // Open editor for the newly created checkpoint
+        const newIndex = newCheckpoints.length - 1;
+        setEditingCheckpointIndex(newIndex);
+        setTempContent(newCheckpoint.content);
     };
 
     const updateCheckpoint = (index: number, field: keyof CheckpointData, value: string) => {
@@ -106,12 +129,12 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
     };
 
     const handleSave = () => {
-        // Generate children string
+        // Generate children string with checkpoints sorted by time
         const children = checkpoints
             .sort((a, b) => {
-                // Simple sort by string comparison usually works for "00:00" format, 
-                // but ideally we'd parse back to seconds. 
-                return a.time.localeCompare(b.time);
+                const timeA = parseTimeToSeconds(a.time);
+                const timeB = parseTimeToSeconds(b.time);
+                return timeA - timeB;
             })
             .map(cp => `  <Checkpoint time="${cp.time}">\n    ${cp.content}\n  </Checkpoint>`)
             .join('\n');
@@ -241,25 +264,36 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
                                             onPause={() => setIsPlaying(false)}
                                         />
                                     ) : (
-                                        /* @ts-ignore - ReactPlayer types seem to be missing url prop in this version */
                                         <ReactPlayer
                                             key={src} // Force remount
-                                            ref={playerRef}
-                                            url={src}
+                                            ref={setPlayerRef}
+                                            src={src}
                                             playing={isPlaying}
-                                            controls={true} // Keep controls enabled for debugging
+                                            controls={false}
                                             width="100%"
                                             height="100%"
                                             className="react-player"
+                                            progressInterval={100}
                                             onProgress={handleProgress as any}
+                                            onDurationChange={handleDuration}
+                                            // @ts-ignore - onTimeUpdate is passed to native video element
+                                            onTimeUpdate={(e) => {
+                                                if (e.target && typeof (e.target as any).currentTime === 'number') {
+                                                    setCurrentTime((e.target as any).currentTime);
+                                                }
+                                            }}
                                             onEnded={() => setIsPlaying(false)}
-                                            onReady={() => console.log('Wizard: Player Ready')}
+                                            onReady={() => { }}
                                             onError={(e) => console.error('Wizard: Player Error', e)}
-                                            style={{ aspectRatio: '16/9' }}
                                             config={{
                                                 youtube: {
                                                     playerVars: {
-                                                        showinfo: 1,
+                                                        showinfo: 0,
+                                                        controls: 0,
+                                                        modestbranding: 1,
+                                                        rel: 0,
+                                                        iv_load_policy: 3,
+                                                        fs: 0,
                                                         origin: typeof window !== 'undefined' ? window.location.origin : undefined
                                                     }
                                                 } as any
@@ -270,6 +304,18 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
                             ) : (
                                 <div className="w-full aspect-video flex items-center justify-center text-gray-500">
                                     No source selected
+                                </div>
+                            )}
+
+                            {/* Big Play Button Overlay (Video Only) */}
+                            {src && !isPlaying && type === 'video' && (
+                                <div
+                                    className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 cursor-pointer"
+                                    onClick={togglePlay}
+                                >
+                                    <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:scale-110 transition-transform duration-200">
+                                        <Play size={32} className="text-white fill-white ml-1" />
+                                    </div>
                                 </div>
                             )}
 
@@ -301,19 +347,13 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
                                             type="range"
                                             min={0}
                                             max={duration || 100}
-                                            value={currentTime}
+                                            value={currentTime || 0}
                                             onChange={(e) => {
                                                 const time = parseFloat(e.target.value);
                                                 setCurrentTime(time);
                                                 const player = playerRef.current;
                                                 if (player) {
-                                                    if (player instanceof HTMLAudioElement) {
-                                                        player.currentTime = time;
-                                                    } else if (typeof player.seekTo === 'function') {
-                                                        player.seekTo(time, 'seconds');
-                                                    } else if (player.player && typeof player.player.seekTo === 'function') {
-                                                        player.player.seekTo(time, 'seconds');
-                                                    }
+                                                    player.currentTime = time;
                                                 }
                                             }}
                                             className="absolute inset-0 w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:rounded-full hover:[&::-webkit-slider-thumb]:scale-125 transition-all z-10"
@@ -332,11 +372,8 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
                                         <button onClick={() => {
                                             const player = playerRef.current;
                                             if (player) {
-                                                if (typeof player.seekTo === 'function') {
-                                                    player.seekTo(0);
-                                                } else if (player.player && typeof player.player.seekTo === 'function') {
-                                                    player.player.seekTo(0);
-                                                }
+                                                player.currentTime = 0;
+                                                setCurrentTime(0);
                                             }
                                         }} className="hover:text-blue-400">
                                             <RotateCcw size={20} />
@@ -389,13 +426,8 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
                                                         const seconds = parseTimeToSeconds(cp.time);
                                                         const player = playerRef.current;
                                                         if (player) {
-                                                            if (player instanceof HTMLAudioElement) {
-                                                                player.currentTime = seconds;
-                                                            } else if (typeof player.seekTo === 'function') {
-                                                                player.seekTo(seconds, 'seconds');
-                                                            } else if (player.player && typeof player.player.seekTo === 'function') {
-                                                                player.player.seekTo(seconds, 'seconds');
-                                                            }
+                                                            player.currentTime = seconds;
+                                                            setCurrentTime(seconds);
                                                         }
                                                     }}
                                                     className="text-xs text-gray-500 hover:text-blue-500 underline"
