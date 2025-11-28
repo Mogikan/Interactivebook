@@ -7,6 +7,7 @@ import { clsx } from 'clsx';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { NextLessonNavigation } from './components/NextLessonNavigation';
+import TableTest from './TableTest';
 
 // Import all MDX files eagerly
 const mdxModules = import.meta.glob('./content/**/*.mdx', { eager: true });
@@ -246,6 +247,7 @@ function AppContent() {
                 }
               />
             ))}
+            <Route path="/table-test" element={<TableTest />} />
             <Route path="/editor" element={<EditorPage />} />
             <Route path="/" element={<Navigate to={routes[0]?.path || '/editor'} replace />} />
           </Routes>

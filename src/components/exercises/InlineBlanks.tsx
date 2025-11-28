@@ -161,7 +161,7 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
 
     if (isMarkdown) {
         return (
-            <span className="leading-normal">
+            <div className="leading-normal prose dark:prose-invert max-w-none">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeRaw]}
@@ -169,7 +169,7 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
                 >
                     {processedMarkdown}
                 </ReactMarkdown>
-            </span>
+            </div>
         );
     }
 

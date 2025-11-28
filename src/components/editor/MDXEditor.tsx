@@ -221,12 +221,26 @@ export const MDXEditor: React.FC<MDXEditorProps> = ({ value, onChange, className
                     // Handles multiline opening tags, whitespace, case insensitivity
                     const regex = new RegExp(`(<${tagName}\\b[^>]*>)([\\s\\S]*?)(<\\/\\s*${tagName}\\s*>)`, 'gi');
                     return text.replace(regex, (_match, openTag, content, closeTag) => {
-                        const cleanedContent = content
-                            .split('\n')
-                            .map((line: string) => line.trim()) // Trim whitespace from each line
-                            .filter((line: string) => line.length > 0) // Remove empty lines
-                            .join(' '); // Join with space to avoid paragraph breaks
-                        return openTag + cleanedContent + closeTag;
+                        // Check if content contains a markdown table (has separator line like | --- | --- |)
+                        const hasTableSeparator = /^\s*\|[\s\-:|]+\|\s*$/m.test(content);
+
+                        if (hasTableSeparator) {
+                            // For tables: preserve newlines, only trim each line
+                            const cleanedContent = content
+                                .split('\n')
+                                .map((line: string) => line.trim())
+                                .filter((line: string) => line.length > 0)
+                                .join('\n'); // Keep newlines for table structure
+                            return openTag + '\n' + cleanedContent + '\n' + closeTag;
+                        } else {
+                            // For non-tables: original behavior (join with space)
+                            const cleanedContent = content
+                                .split('\n')
+                                .map((line: string) => line.trim())
+                                .filter((line: string) => line.length > 0)
+                                .join(' ');
+                            return openTag + cleanedContent + closeTag;
+                        }
                     });
                 };
 
