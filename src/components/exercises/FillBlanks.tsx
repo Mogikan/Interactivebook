@@ -392,14 +392,47 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
         }
 
         if (mode === 'drag') {
+            const dropId = `drop-${index}`;
+            const droppedItemId = droppedItems[dropId];
+            const droppedText = getItemText(droppedItemId || '');
+
+            const isCorrect = submitted && droppedText === answer;
+            const isWrong = submitted && droppedItemId && !isCorrect;
+
             return (
-                <DropZone
-                    key={`blank-drop-${index}`}
-                    id={`drop-${index}`}
-                    current={value}
-                    text={value}
-                    disabled={submitted}
-                />
+                <span key={index} className={clsx(
+                    "inline-block mx-1 rounded px-1 relative",
+                    isCorrect && "bg-green-100 dark:bg-green-900/30",
+                    isWrong && "bg-red-100 dark:bg-red-900/30"
+                )}>
+                    <span onClick={() => handleDropZoneClick(dropId)} className="inline-block cursor-pointer">
+                        <DropZone
+                            key={`blank-drop-${index}`}
+                            id={dropId}
+                            current={droppedItemId}
+                            text={droppedText}
+                            disabled={submitted}
+                        />
+                    </span>
+                    {/* Options Menu */}
+                    {activeDropMenu === dropId && !submitted && (
+                        <span className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto block text-left">
+                            <span className="text-xs font-semibold text-gray-500 mb-2 px-2 block">Select word:</span>
+                            {dragItems.map(itemId => (
+                                <button
+                                    key={itemId}
+                                    onClick={() => handleMenuOptionClick(dropId, itemId)}
+                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 block"
+                                >
+                                    {getItemText(itemId)}
+                                </button>
+                            ))}
+                            {dragItems.length === 0 && (
+                                <span className="text-xs text-gray-400 px-2 italic block">No words available</span>
+                            )}
+                        </span>
+                    )}
+                </span>
             );
         }
 
@@ -438,7 +471,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                 )}
             </span>
         );
-    }, [mode, inputs, handleInputChange, handleBlur, options, submitted, showItemHints, revealAnswer]);
+    }, [mode, inputs, handleInputChange, handleBlur, options, submitted, showItemHints, revealAnswer, droppedItems, handleDropZoneClick, getItemText, activeDropMenu, dragItems, handleMenuOptionClick]);
 
 
     // Check if content is a markdown table (not just any text with pipes or newlines)
@@ -487,10 +520,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
     }
 
     return (
-        <div className={clsx(
-            "my-6",
-            !isMarkdown && "p-6 border border-gray-200 rounded-xl bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700"
-        )}>
+        <div className="my-6">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                 <div className={clsx(
                     "mb-6 text-gray-800 dark:text-gray-200",
