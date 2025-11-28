@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSettings } from '../../context/SettingsContext';
-import { useBlanks, type BlankData, type BlankStatus } from './hooks/useBlanks';
+import { useBlanks, getTextFromChildren, type BlankData, type BlankStatus } from './hooks/useBlanks';
 
 interface FillBlanksProps {
     children: React.ReactNode; // Text with {answer} or [answer]
@@ -62,8 +62,11 @@ function DropZone({ id, current, text, disabled }: { id: string; current?: strin
 export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input', options = [], showItemHints = false }) => {
     // Pre-process children: dedent if string to ensure markdown tables work
     const contentToProcess = useMemo(() => {
-        if (typeof children === 'string' && (children.includes('|') || children.includes('\n'))) {
-            const lines = children.split('\n');
+        // Convert children to string first (MDX may pass as array)
+        const text = getTextFromChildren(children);
+
+        if (text.includes('|') || text.includes('\n')) {
+            const lines = text.split('\n');
             const minIndent = lines.reduce((min, line) => {
                 if (line.trim().length === 0) return min;
                 const indent = line.match(/^\s*/)?.[0].length || 0;
@@ -73,6 +76,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
             if (minIndent !== Infinity && minIndent > 0) {
                 return lines.map(line => line.length >= minIndent ? line.slice(minIndent) : line).join('\n');
             }
+            return text;
         }
         return children;
     }, [children]);
@@ -292,7 +296,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
             return droppedId && getItemText(droppedId) === ans;
         });
 
-    const renderBlank = (index: number, data: BlankData, status: BlankStatus) => {
+    const renderBlank = useCallback((index: number, data: BlankData, status: BlankStatus) => {
         const { value, isCorrect, isWrong } = status;
         const { answer, localOptions } = data;
 
@@ -300,6 +304,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
             return (
                 <span key={index} className="inline-flex items-center relative mx-1 align-middle">
                     <input
+                        key={`blank-input-${index}`}
                         type="text"
                         autoCapitalize="off"
                         autoComplete="off"
@@ -337,6 +342,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
             return (
                 <span key={index} className="inline-flex items-center relative mx-1 align-middle">
                     <select
+                        key={`blank-select-${index}`}
                         value={value}
                         onChange={(e) => handleInputChange(index, e.target.value)}
                         disabled={submitted}
@@ -411,50 +417,66 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                 </span>
             );
         }
-    };
+    }, [mode, inputs, submitted, handleInputChange, options, showItemHints, revealAnswer, droppedItems, handleDropZoneClick, getItemText, activeDropMenu, dragItems, handleMenuOptionClick]);
 
-    const isMarkdown = typeof contentToProcess === 'string' && (contentToProcess.includes('|') || contentToProcess.includes('\n'));
+    // Check if content is a markdown table (not just any text with pipes or newlines)
+    const isMarkdown = useMemo(() => {
+        if (typeof contentToProcess !== 'string') return false;
+        const text = contentToProcess;
+        const lines = text.split('\n');
+        // A markdown table must have pipes AND a separator line (e.g., | --- | --- |)
+        const hasPipes = lines.some(line => line.includes('|'));
+        const hasSeparator = lines.some(line => /^\s*\|[\s\-:|]+\|\s*$/.test(line));
+        return hasPipes && hasSeparator;
+    }, [contentToProcess]);
 
-    let content;
-    if (isMarkdown) {
+    // Memoize processed markdown to prevent re-parsing
+    const processedMarkdown = useMemo(() => {
+        if (!isMarkdown) return '';
         const text = contentToProcess as string;
         const parts = text.split(/(\[.*?\])/g);
         let blankIndex = 0;
-        const processedMarkdown = parts.map(part => {
+        return parts.map(part => {
             if (part.startsWith('[') && part.endsWith(']')) {
                 const index = blankIndex++;
                 return `<span data-blank="${index}"></span>`;
             }
             return part;
         }).join('');
+    }, [isMarkdown, contentToProcess]);
 
+    // Memoize components object to prevent ReactMarkdown re-creation
+    const markdownComponents = useMemo(() => ({
+        span: (props: any) => {
+            const indexStr = props['data-blank'];
+            if (indexStr !== undefined) {
+                const index = parseInt(indexStr as string);
+                const data = blanksData[index];
+                if (!data) return null;
+
+                const value = inputs[index] || '';
+                const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
+                const showValidation = submitted || (touched[index] && value.trim() !== '');
+                const status = {
+                    value,
+                    isCorrect,
+                    isWrong: showValidation && !isCorrect,
+                    touched: touched[index],
+                    showValidation
+                };
+                return renderBlank(index, data, status);
+            }
+            return <span {...props} />;
+        }
+    }), [blanksData, inputs, touched, submitted, renderBlank]);
+
+    let content;
+    if (isMarkdown) {
         content = (
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}
-                components={{
-                    span: (props) => {
-                        const indexStr = (props as any)['data-blank'];
-                        if (indexStr !== undefined) {
-                            const index = parseInt(indexStr as string);
-                            const data = blanksData[index];
-                            if (!data) return null;
-
-                            const value = inputs[index] || '';
-                            const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
-                            const showValidation = submitted || (touched[index] && value.trim() !== '');
-                            const status = {
-                                value,
-                                isCorrect,
-                                isWrong: showValidation && !isCorrect,
-                                touched: touched[index],
-                                showValidation
-                            };
-                            return renderBlank(index, data, status);
-                        }
-                        return <span {...props} />;
-                    }
-                }}
+                components={markdownComponents}
             >
                 {processedMarkdown}
             </ReactMarkdown>
