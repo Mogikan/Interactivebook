@@ -61,6 +61,7 @@ export const useBlanks = ({ children, options: _options = [] }: UseBlanksOptions
     // 2. State management
     const [inputs, setInputs] = useState<string[]>(() => new Array(answers.length).fill(''));
     const [touched, setTouched] = useState<boolean[]>(() => new Array(answers.length).fill(false));
+    const [blurred, setBlurred] = useState<boolean[]>(() => new Array(answers.length).fill(false));
     const [submitted, setSubmitted] = useState(false);
     const [showAnswers, setShowAnswers] = useState(false);
 
@@ -71,6 +72,20 @@ export const useBlanks = ({ children, options: _options = [] }: UseBlanksOptions
             return next;
         });
         setTouched(prev => {
+            const next = [...prev];
+            next[index] = true;
+            return next;
+        });
+        // Reset blur state on change so partial matches are valid again while typing
+        setBlurred(prev => {
+            const next = [...prev];
+            next[index] = false;
+            return next;
+        });
+    }, []);
+
+    const handleBlur = useCallback((index: number) => {
+        setBlurred(prev => {
             const next = [...prev];
             next[index] = true;
             return next;
@@ -131,11 +146,12 @@ export const useBlanks = ({ children, options: _options = [] }: UseBlanksOptions
                             const value = inputs[index] || '';
                             const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
                             const showValidation = submitted || (touched[index] && value.trim() !== '');
+                            const isPartialMatch = value.trim().length > 0 && data.answer.toLowerCase().startsWith(value.trim().toLowerCase());
 
                             const status: BlankStatus = {
                                 value,
                                 isCorrect,
-                                isWrong: showValidation && !isCorrect,
+                                isWrong: showValidation && !isCorrect && (submitted || (!isPartialMatch || blurred[index])),
                                 touched: touched[index],
                                 showValidation
                             };
@@ -177,9 +193,11 @@ export const useBlanks = ({ children, options: _options = [] }: UseBlanksOptions
         inputs,
         setInputs,
         touched,
+        blurred,
         submitted,
         showAnswers,
         handleInputChange,
+        handleBlur,
         checkAnswers,
         reset,
         revealAnswer,

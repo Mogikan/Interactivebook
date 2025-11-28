@@ -191,10 +191,9 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
         }
     };
 
-    const setPlayerRef = React.useCallback((player: HTMLVideoElement | HTMLAudioElement) => {
-        if (!player) return;
+    const setPlayerRef = (player: HTMLVideoElement | HTMLAudioElement | null) => {
         playerRef.current = player;
-    }, []);
+    };
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -261,10 +260,7 @@ export const InteractiveMedia: React.FC<InteractiveMediaProps> = ({
                             width="100%"
                             height="100%"
                             className="react-player"
-                            // @ts-ignore - progressInterval exists in runtime but missing in types
-                            progressInterval={100}
                             onProgress={handleProgress as any}
-                            onDuration={handleDuration}
                             onDurationChange={handleDuration}
                             // @ts-ignore - onTimeUpdate is passed to native video element
                             onTimeUpdate={(e) => {

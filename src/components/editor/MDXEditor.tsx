@@ -26,7 +26,7 @@ import { InlineBlanksWizard } from './wizards/InlineBlanksWizard';
 import { TableWizard } from './wizards/TableWizard';
 import { DialogueWizard } from './wizards/DialogueWizard';
 import { ErrorBoundary } from '../ErrorBoundary';
-import { FileQuestion, ListOrdered, ArrowLeftRight, FormInput, Type, Layers, Image, MessageSquare, Film } from 'lucide-react';
+import { FileQuestion, ListOrdered, ArrowLeftRight, FormInput, Type, Layers, Image, MessageSquare, Film, Eye, EyeOff } from 'lucide-react';
 
 interface MDXEditorProps {
     value: string;
@@ -39,7 +39,16 @@ export const MDXEditor: React.FC<MDXEditorProps> = ({ value, onChange, className
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [MDXComponent, setMDXComponent] = useState<React.ComponentType<any> | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showPreview, setShowPreview] = useState(true);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const gutterRef = useRef<HTMLDivElement>(null);
+
+    // Sync gutter scroll with textarea scroll
+    const handleTextareaScroll = () => {
+        if (textareaRef.current && gutterRef.current) {
+            gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+        }
+    };
 
     const insertTextAtCursor = (text: string) => {
         const textarea = textareaRef.current;
@@ -359,7 +368,6 @@ export const MDXEditor: React.FC<MDXEditorProps> = ({ value, onChange, className
             />
 
             <div className="p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 flex gap-2 overflow-x-auto items-center">
-
                 <button onClick={() => setActiveWizard('InlineBlanks')} className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 text-sm whitespace-nowrap transition-colors shadow-sm text-gray-700 dark:text-gray-200">
                     <Type size={16} className="text-blue-600 dark:text-blue-400" />
                     <span>Inline Blanks</span>
@@ -415,47 +423,80 @@ export const MDXEditor: React.FC<MDXEditorProps> = ({ value, onChange, className
             {/* Editor & Preview Area */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Source Editor */}
-                <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                    <div className="p-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
-                        Source
+                <div className={`border-r border-gray-200 dark:border-gray-700 flex overflow-hidden transition-all ${showPreview ? 'w-1/2' : 'w-full'}`}>
+                    {/* Line numbers gutter */}
+                    <div className="bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+                        <div className="p-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-center">
+                            #
+                        </div>
+                        <div
+                            ref={gutterRef}
+                            className="flex-1 py-4 px-2 font-mono text-sm text-right text-gray-400 dark:text-gray-500 select-none overflow-y-auto scrollbar-hide"
+                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        >
+                            {value.split('\n').map((_, index) => (
+                                <div key={index} className="leading-[1.5] h-[21px]">
+                                    {index + 1}
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                    <textarea
-                        ref={textareaRef}
-                        value={value}
-                        onChange={e => onChange(e.target.value)}
-                        className="flex-1 w-full p-4 font-mono text-sm bg-white dark:bg-gray-950 resize-none focus:outline-none"
-                        placeholder="Paste MDX content here..."
-                    />
+                    {/* Text editor */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="px-2 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 min-h-[32px]">
+                            <span>Source</span>
+                            <button
+                                onClick={() => setShowPreview(!showPreview)}
+                                className="flex items-center gap-1 px-2 py-0.5 bg-blue-600 hover:bg-blue-700 rounded text-xs text-white font-medium transition-colors normal-case flex-shrink-0 whitespace-nowrap"
+                                title={showPreview ? "Hide Preview" : "Show Preview"}
+                            >
+                                {showPreview ? <EyeOff size={12} /> : <Eye size={12} />}
+                                <span className="text-[10px]">{showPreview ? "Hide Preview" : "Show Preview"}</span>
+                            </button>
+                        </div>
+                        <textarea
+                            ref={textareaRef}
+                            value={value}
+                            onChange={e => onChange(e.target.value)}
+                            onScroll={handleTextareaScroll}
+                            wrap="off"
+                            className="flex-1 w-full p-4 font-mono text-sm bg-white dark:bg-gray-950 resize-none focus:outline-none leading-[1.5] overflow-auto whitespace-pre"
+                            placeholder="Paste MDX content here..."
+                            style={{ lineHeight: '1.5' }}
+                        />
+                    </div>
                 </div>
 
                 {/* Live Preview */}
-                <div className="w-1/2 flex flex-col bg-white dark:bg-gray-900">
-                    <div className="p-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
-                        Preview
+                {showPreview && (
+                    <div className="w-1/2 flex flex-col bg-white dark:bg-gray-900">
+                        <div className="p-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
+                            Preview
+                        </div>
+                        <div className="flex-1 overflow-auto p-8 prose dark:prose-invert max-w-none">
+                            {error ? (
+                                <div className="p-4 bg-red-50 text-red-600 rounded border border-red-200">
+                                    <h3 className="font-bold mb-2">Compilation Error</h3>
+                                    <pre className="whitespace-pre-wrap text-sm font-mono">{error}</pre>
+                                </div>
+                            ) : (
+                                MDXComponent && (
+                                    <ErrorBoundary key={value} fallback={(err) => (
+                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
+                                            <h3 className="font-bold mb-2">Runtime Error</h3>
+                                            <pre className="whitespace-pre-wrap text-sm font-mono">{err.message}</pre>
+                                        </div>
+                                    )}>
+                                        <MDXComponent components={components} />
+                                    </ErrorBoundary>
+                                )
+                            )}
+                        </div>
                     </div>
-                    <div className="flex-1 overflow-auto p-8 prose dark:prose-invert max-w-none">
-                        {error ? (
-                            <div className="p-4 bg-red-50 text-red-600 rounded border border-red-200">
-                                <h3 className="font-bold mb-2">Compilation Error</h3>
-                                <pre className="whitespace-pre-wrap text-sm font-mono">{error}</pre>
-                            </div>
-                        ) : (
-                            MDXComponent && (
-                                <ErrorBoundary key={value} fallback={(err) => (
-                                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
-                                        <h3 className="font-bold mb-2">Runtime Error</h3>
-                                        <pre className="whitespace-pre-wrap text-sm font-mono">{err.message}</pre>
-                                    </div>
-                                )}>
-                                    <MDXComponent components={components} />
-                                </ErrorBoundary>
-                            )
-                        )}
-                    </div>
-                </div>
+                )}
             </div>
 
             {renderWizard()}
-        </div>
+        </div >
     );
 };

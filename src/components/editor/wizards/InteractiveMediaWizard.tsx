@@ -273,7 +273,6 @@ export const InteractiveMediaWizard: React.FC<InteractiveMediaWizardProps> = ({ 
                                             width="100%"
                                             height="100%"
                                             className="react-player"
-                                            progressInterval={100}
                                             onProgress={handleProgress as any}
                                             onDurationChange={handleDuration}
                                             // @ts-ignore - onTimeUpdate is passed to native video element

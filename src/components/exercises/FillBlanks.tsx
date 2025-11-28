@@ -59,6 +59,54 @@ function DropZone({ id, current, text, disabled }: { id: string; current?: strin
     );
 }
 
+// Context to pass data to markdown components without re-creating them
+const BlanksContext = React.createContext<{
+    blanksData: BlankData[];
+    inputs: string[];
+    touched: boolean[];
+    blurred: boolean[];
+    handleBlur: (index: number) => void;
+    submitted: boolean;
+    renderBlank: (index: number, data: BlankData, status: BlankStatus) => React.ReactNode;
+} | null>(null);
+
+// Component to render a blank within markdown
+const MarkdownBlank = ({ indexStr }: { indexStr: string }) => {
+    const context = React.useContext(BlanksContext);
+    if (!context) return null;
+
+    const { blanksData, inputs, touched, blurred, submitted, renderBlank } = context;
+    const index = parseInt(indexStr);
+    const data = blanksData[index];
+    if (!data) return null;
+
+    const value = inputs[index] || '';
+    const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
+    const showValidation = submitted || (touched[index] && value.trim() !== '');
+    const isPartialMatch = value.trim().length > 0 && data.answer.toLowerCase().startsWith(value.trim().toLowerCase());
+
+    const status = {
+        value,
+        isCorrect,
+        isWrong: showValidation && !isCorrect && (submitted || (!isPartialMatch || blurred[index])),
+        touched: touched[index],
+        showValidation
+    };
+    return <>{renderBlank(index, data, status)}</>;
+};
+
+// Stable components object
+const markdownComponents = {
+    span: (props: any) => {
+        const indexStr = props['data-blank'];
+        if (indexStr !== undefined) {
+            return <MarkdownBlank indexStr={indexStr} />;
+        }
+        return <span {...props} />;
+    }
+};
+
+
 export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input', options = [], showItemHints = false }) => {
     // Pre-process children: dedent if string to ensure markdown tables work
     const contentToProcess = useMemo(() => {
@@ -86,7 +134,9 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
         answers,
         inputs,
         handleInputChange,
+        handleBlur,
         touched,
+        blurred,
         submitted,
         checkAnswers: hookCheckAnswers,
         reset: hookReset,
@@ -299,27 +349,31 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
     const renderBlank = useCallback((index: number, data: BlankData, status: BlankStatus) => {
         const { value, isCorrect, isWrong } = status;
         const { answer, localOptions } = data;
+        // Combine answer with options for the dropdown
+        const currentOptions = localOptions.length > 0 ? localOptions : options;
+        const dropdownOptions = Array.from(new Set([...currentOptions, answer])).sort();
 
-        if (mode === 'input') {
+        if (mode === 'picker') {
             return (
                 <span key={index} className="inline-flex items-center relative mx-1 align-middle">
-                    <input
-                        key={`blank-input-${index}`}
-                        type="text"
-                        autoCapitalize="off"
-                        autoComplete="off"
-                        autoCorrect="off"
+                    <select
+                        key={`blank-select-${index}`}
                         value={value}
                         onChange={(e) => handleInputChange(index, e.target.value)}
+                        onBlur={() => handleBlur(index)}
                         disabled={submitted}
                         className={clsx(
-                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center",
-                            isCorrect && submitted ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-t" :
-                                isWrong && submitted ? "border-red-500 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-t" :
-                                    "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
+                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center cursor-pointer appearance-none pr-4",
+                            isCorrect ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" :
+                                isWrong ? "border-red-500 text-red-600 bg-red-50 dark:bg-red-900/20" :
+                                    "border-gray-300 focus:border-blue-500 dark:border-gray-600"
                         )}
-                        style={{ width: `${Math.max(answer.length, 4)}ch` }}
-                    />
+                    >
+                        <option value="" disabled>...</option>
+                        {dropdownOptions.map((opt, i) => (
+                            <option key={i} value={opt}>{opt}</option>
+                        ))}
+                    </select>
                     {showItemHints && !submitted && (
                         <button
                             onClick={() => revealAnswer(index)}
@@ -335,89 +389,57 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                     )}
                 </span>
             );
-        } else if (mode === 'picker') {
-            const currentOptions = localOptions.length > 0 ? localOptions : options;
-            const dropdownOptions = Array.from(new Set([...currentOptions, answer])).sort();
+        }
 
+        if (mode === 'drag') {
             return (
-                <span key={index} className="inline-flex items-center relative mx-1 align-middle">
-                    <select
-                        key={`blank-select-${index}`}
-                        value={value}
-                        onChange={(e) => handleInputChange(index, e.target.value)}
-                        disabled={submitted}
-                        className={clsx(
-                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center cursor-pointer appearance-none pr-4",
-                            isCorrect && submitted ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-t" :
-                                isWrong && submitted ? "border-red-500 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-t" :
-                                    "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
-                        )}
-                    >
-                        <option value="" disabled>...</option>
-                        {dropdownOptions.map((opt, idx) => (
-                            <option key={idx} value={opt}>{opt}</option>
-                        ))}
-                    </select>
-                    {showItemHints && !submitted && (
-                        <button
-                            onClick={() => revealAnswer(index)}
-                            title="Show hint"
-                            className="ml-0.5 p-0.5 text-gray-400 hover:text-yellow-500 transition-colors focus:outline-none"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-                                <path d="M9 18h6" />
-                                <path d="M10 22h4" />
-                            </svg>
-                        </button>
-                    )}
-                </span>
-            );
-        } else {
-            // Drag mode
-            const dropId = `drop-${index}`;
-            const droppedItemId = droppedItems[dropId];
-            const droppedText = getItemText(droppedItemId || '');
-
-            const isCorrect = submitted && droppedText === answer;
-            const isWrong = submitted && droppedItemId && !isCorrect;
-
-            return (
-                <span key={index} className={clsx(
-                    "inline-block mx-1 rounded px-1 relative",
-                    isCorrect && "bg-green-100 dark:bg-green-900/30",
-                    isWrong && "bg-red-100 dark:bg-red-900/30"
-                )}>
-                    <span onClick={() => handleDropZoneClick(dropId)} className="inline-block cursor-pointer">
-                        <DropZone
-                            id={dropId}
-                            current={droppedItemId}
-                            text={droppedText}
-                            disabled={submitted}
-                        />
-                    </span>
-                    {/* Options Menu */}
-                    {activeDropMenu === dropId && !submitted && (
-                        <span className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto block text-left">
-                            <span className="text-xs font-semibold text-gray-500 mb-2 px-2 block">Select word:</span>
-                            {dragItems.map(itemId => (
-                                <button
-                                    key={itemId}
-                                    onClick={() => handleMenuOptionClick(dropId, itemId)}
-                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 block"
-                                >
-                                    {getItemText(itemId)}
-                                </button>
-                            ))}
-                            {dragItems.length === 0 && (
-                                <span className="text-xs text-gray-400 px-2 italic block">No words available</span>
-                            )}
-                        </span>
-                    )}
-                </span>
+                <DropZone
+                    key={`blank-drop-${index}`}
+                    id={`drop-${index}`}
+                    current={value}
+                    text={value}
+                    disabled={submitted}
+                />
             );
         }
-    }, [mode, inputs, submitted, handleInputChange, options, showItemHints, revealAnswer, droppedItems, handleDropZoneClick, getItemText, activeDropMenu, dragItems, handleMenuOptionClick]);
+
+        return (
+            <span key={index} className="inline-block relative">
+                <input
+                    key={`blank-input-${index}`}
+                    type="text"
+                    autoCapitalize="off"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    value={value}
+                    onChange={(e) => handleInputChange(index, e.target.value)}
+                    onBlur={() => handleBlur(index)}
+                    disabled={submitted}
+                    className={clsx(
+                        "mx-1 px-2 py-1 border-b-2 outline-none bg-transparent transition-colors text-center min-w-[60px]",
+                        isCorrect ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" :
+                            isWrong ? "border-red-500 text-red-600 bg-red-50 dark:bg-red-900/20" :
+                                "border-gray-300 focus:border-blue-500 dark:border-gray-600"
+                    )}
+                    style={{ width: `${Math.max(answer.length * 10 + 20, 60)}px` }}
+                />
+                {showItemHints && !isCorrect && !submitted && (
+                    <button
+                        onClick={() => revealAnswer(index)}
+                        className="absolute -right-6 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-500 transition-colors"
+                        title="Show hint"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                            <path d="M9 18h6" />
+                            <path d="M10 22h4" />
+                        </svg>
+                    </button>
+                )}
+            </span>
+        );
+    }, [mode, inputs, handleInputChange, handleBlur, options, submitted, showItemHints, revealAnswer]);
+
 
     // Check if content is a markdown table (not just any text with pipes or newlines)
     const isMarkdown = useMemo(() => {
@@ -445,52 +467,36 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
         }).join('');
     }, [isMarkdown, contentToProcess]);
 
-    // Memoize components object to prevent ReactMarkdown re-creation
-    const markdownComponents = useMemo(() => ({
-        span: (props: any) => {
-            const indexStr = props['data-blank'];
-            if (indexStr !== undefined) {
-                const index = parseInt(indexStr as string);
-                const data = blanksData[index];
-                if (!data) return null;
 
-                const value = inputs[index] || '';
-                const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
-                const showValidation = submitted || (touched[index] && value.trim() !== '');
-                const status = {
-                    value,
-                    isCorrect,
-                    isWrong: showValidation && !isCorrect,
-                    touched: touched[index],
-                    showValidation
-                };
-                return renderBlank(index, data, status);
-            }
-            return <span {...props} />;
-        }
-    }), [blanksData, inputs, touched, submitted, renderBlank]);
 
     let content;
     if (isMarkdown) {
         content = (
-            <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-                components={markdownComponents}
-            >
-                {processedMarkdown}
-            </ReactMarkdown>
+            <BlanksContext.Provider value={{ blanksData, inputs, touched, blurred, handleBlur, submitted, renderBlank }}>
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                    components={markdownComponents}
+                >
+                    {processedMarkdown}
+                </ReactMarkdown>
+            </BlanksContext.Provider>
         );
     } else {
         content = renderContent(renderBlank);
     }
 
     return (
-        <div className="my-6 p-6 border border-gray-200 rounded-xl bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700">
+        <div className={clsx(
+            "my-6",
+            !isMarkdown && "p-6 border border-gray-200 rounded-xl bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700"
+        )}>
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                 <div className={clsx(
-                    "mb-6 leading-loose text-lg text-gray-800 dark:text-gray-200",
-                    isMarkdown && "prose dark:prose-invert max-w-none"
+                    "mb-6 text-gray-800 dark:text-gray-200",
+                    isMarkdown
+                        ? "prose dark:prose-invert max-w-none leading-normal"
+                        : "leading-loose text-lg"
                 )}>
                     {content}
                 </div>

@@ -1,4 +1,3 @@
-import React from 'react';
 import { FillBlanks } from './components/exercises/FillBlanks';
 import { InlineBlanks } from './components/exercises/InlineBlanks';
 

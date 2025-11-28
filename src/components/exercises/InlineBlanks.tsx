@@ -11,6 +11,53 @@ interface InlineBlanksProps {
     options?: string[];
 }
 
+// Context to pass data to markdown components without re-creating them
+const InlineBlanksContext = React.createContext<{
+    blanksData: BlankData[];
+    inputs: string[];
+    touched: boolean[];
+    blurred: boolean[];
+    handleBlur: (index: number) => void;
+    renderBlank: (index: number, data: BlankData, status: BlankStatus) => React.ReactNode;
+} | null>(null);
+
+// Component to render a blank within markdown
+const InlineMarkdownBlank = ({ indexStr }: { indexStr: string }) => {
+    const context = React.useContext(InlineBlanksContext);
+    if (!context) return null;
+
+    const { blanksData, inputs, touched, blurred, renderBlank } = context;
+    const index = parseInt(indexStr);
+    const data = blanksData[index];
+    if (!data) return null;
+
+    const value = inputs[index] || '';
+    const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
+    const showValidation = touched[index] && value.trim() !== '';
+    const isPartialMatch = value.trim().length > 0 && data.answer.toLowerCase().startsWith(value.trim().toLowerCase());
+
+    const status = {
+        value,
+        isCorrect,
+        isWrong: showValidation && !isCorrect && (!isPartialMatch || blurred[index]),
+        touched: touched[index],
+        showValidation
+    };
+    return <>{renderBlank(index, data, status)}</>;
+};
+
+// Stable components object
+const inlineMarkdownComponents = {
+    span: (props: any) => {
+        const indexStr = props['data-blank'];
+        if (indexStr !== undefined) {
+            return <InlineMarkdownBlank indexStr={indexStr} />;
+        }
+        return <span {...props} />;
+    },
+    p: ({ children }: any) => <span className="block mb-2">{children}</span>
+};
+
 export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'type', options = [] }) => {
     // Pre-process children: dedent if string to ensure markdown tables work
     const contentToProcess = useMemo(() => {
@@ -37,7 +84,9 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
         blanksData,
         inputs,
         handleInputChange,
+        handleBlur,
         touched,
+        blurred,
         revealAnswer,
         renderContent
     } = useBlanks({ children: contentToProcess, mode, options });
@@ -62,6 +111,7 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
                         onChange={(e) => {
                             handleInputChange(index, e.target.value);
                         }}
+                        onBlur={() => handleBlur(index)}
                         className={clsx(
                             "px-1 py-0.5 border-b-2 outline-none bg-transparent transition-colors text-center min-w-[60px] cursor-pointer appearance-none pr-4",
                             isRight ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" :
@@ -83,6 +133,7 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
                         autoCorrect="off"
                         value={value}
                         onChange={(e) => handleInputChange(index, e.target.value)}
+                        onBlur={() => handleBlur(index)}
                         className={clsx(
                             "px-1 py-0.5 border-b-2 outline-none bg-transparent transition-colors text-center min-w-[40px]",
                             isRight ? "border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20" :
@@ -105,7 +156,7 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
                 </button>
             </span>
         );
-    }, [mode, inputs, handleInputChange, options, revealAnswer]);
+    }, [mode, inputs, handleInputChange, handleBlur, options, revealAnswer]);
 
     // Check if content is a markdown table (not just any text with pipes or newlines)
     const isMarkdown = useMemo(() => {
@@ -133,42 +184,18 @@ export const InlineBlanks: React.FC<InlineBlanksProps> = ({ children, mode = 'ty
         }).join('');
     }, [isMarkdown, contentToProcess]);
 
-    // Memoize components object to prevent ReactMarkdown re-creation
-    const markdownComponents = useMemo(() => ({
-        span: (props: any) => {
-            const indexStr = props['data-blank'];
-            if (indexStr !== undefined) {
-                const index = parseInt(indexStr as string);
-                const data = blanksData[index];
-                if (!data) return null;
-
-                const value = inputs[index] || '';
-                const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
-                const showValidation = touched[index] && value.trim() !== '';
-                const status = {
-                    value,
-                    isCorrect,
-                    isWrong: showValidation && !isCorrect,
-                    touched: touched[index],
-                    showValidation
-                };
-                return renderBlank(index, data, status);
-            }
-            return <span {...props} />;
-        },
-        p: ({ children }: any) => <span className="block mb-2">{children}</span>
-    }), [blanksData, inputs, touched, renderBlank]);
-
     if (isMarkdown) {
         return (
             <div className="leading-normal prose dark:prose-invert max-w-none">
-                <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw]}
-                    components={markdownComponents}
-                >
-                    {processedMarkdown}
-                </ReactMarkdown>
+                <InlineBlanksContext.Provider value={{ blanksData, inputs, touched, blurred, handleBlur, renderBlank }}>
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                        components={inlineMarkdownComponents}
+                    >
+                        {processedMarkdown}
+                    </ReactMarkdown>
+                </InlineBlanksContext.Provider>
             </div>
         );
     }

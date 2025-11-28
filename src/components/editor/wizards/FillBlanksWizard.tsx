@@ -38,7 +38,6 @@ export const FillBlanksWizard: React.FC<FillBlanksWizardProps> = ({ component, o
 
             <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Text Content</label>
-                <label className="block text-sm font-medium mb-1">Text Content</label>
                 <p className="text-xs text-gray-500 mb-2">Use <code>[answer]</code> for input/drag, or <code>[answer|opt1|opt2]</code> for picker.</p>
                 <textarea
                     value={text}
