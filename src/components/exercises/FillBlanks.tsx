@@ -1,27 +1,18 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import React, { useState, useMemo } from 'react';
 import { DndContext, useDraggable, useDroppable, type DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { clsx } from 'clsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { useSettings } from '../../context/SettingsContext';
+import { useBlanks, type BlankData, type BlankStatus } from './hooks/useBlanks';
 
 interface FillBlanksProps {
     children: React.ReactNode; // Text with {answer} or [answer]
     mode?: 'input' | 'drag' | 'picker';
     options?: string[]; // For drag mode, distractors can be added here
+    showItemHints?: boolean; // Enable individual hints (bulb icon)
 }
-
-// Helper to extract text from ReactNode
-const getTextFromChildren = (children: React.ReactNode): string => {
-    if (typeof children === 'string') return children;
-    if (typeof children === 'number') return children.toString();
-    if (Array.isArray(children)) return children.map(getTextFromChildren).join('');
-    if (React.isValidElement(children)) {
-        const props = children.props as { children?: React.ReactNode };
-        if (props.children) {
-            return getTextFromChildren(props.children);
-        }
-    }
-    return '';
-};
 
 // Draggable Item
 function DraggableWord({ id, text, disabled, className }: { id: string; text: string; disabled?: boolean; className?: string }) {
@@ -49,17 +40,6 @@ function DraggableWord({ id, text, disabled, className }: { id: string; text: st
 }
 
 // Drop Zone
-// DropZone needs to render the DraggableWord if it has one.
-// Since we only pass the ID to DropZone, we need to pass the text too or let it look it up.
-// The previous replacement passed `current` (which is ID) to DropZone. 
-// But DropZone doesn't know the text.
-// We need to update DropZone signature or how it's called.
-// In the previous step, I updated FillBlanks to call DropZone with `current={currentId}`.
-// But DropZone definition was NOT updated in the previous step to accept a `text` prop or similar.
-// Wait, I replaced the WHOLE FillBlanks component including DropZone in the previous step?
-// No, I replaced from line 69. DropZone is defined before line 69.
-// I need to update DropZone definition as well.
-
 function DropZone({ id, current, text, disabled }: { id: string; current?: string; text?: string; disabled?: boolean }) {
     const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -79,31 +59,43 @@ function DropZone({ id, current, text, disabled }: { id: string; current?: strin
     );
 }
 
+export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input', options = [], showItemHints = false }) => {
+    // Pre-process children: dedent if string to ensure markdown tables work
+    const contentToProcess = useMemo(() => {
+        if (typeof children === 'string' && (children.includes('|') || children.includes('\n'))) {
+            const lines = children.split('\n');
+            const minIndent = lines.reduce((min, line) => {
+                if (line.trim().length === 0) return min;
+                const indent = line.match(/^\s*/)?.[0].length || 0;
+                return Math.min(min, indent);
+            }, Infinity);
 
-export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input', options = [] }) => {
-    const text = getTextFromChildren(children);
-    // Parse text to find blanks: [answer] or [answer|opt1|opt2]
-    const parts = text.split(/(\[.*?\])/g);
+            if (minIndent !== Infinity && minIndent > 0) {
+                return lines.map(line => line.length >= minIndent ? line.slice(minIndent) : line).join('\n');
+            }
+        }
+        return children;
+    }, [children]);
 
-    // Extract answers and options for each blank
-    const blanksData = parts
-        .filter(p => p.startsWith('[') && p.endsWith(']'))
-        .map(p => {
-            const content = p.slice(1, -1); // Remove [ and ]
-            const items = content.split('|');
-            const answer = items[0];
-            const localOptions = items.slice(1);
-            return { answer, localOptions };
-        });
+    const {
+        blanksData,
+        answers,
+        inputs,
+        handleInputChange,
+        touched,
+        submitted,
+        checkAnswers: hookCheckAnswers,
+        reset: hookReset,
+        revealAnswer,
+        showAllAnswers,
+        renderContent,
+        allCorrect: inputsAllCorrect,
+        setSubmitted
+    } = useBlanks({ children: contentToProcess, mode: mode === 'drag' ? 'input' : mode, options });
 
-    const answers = blanksData.map(b => b.answer);
-
-    const [inputs, setInputs] = useState<string[]>(new Array(answers.length).fill(''));
-    const [submitted, setSubmitted] = useState(false);
-    const [touched, setTouched] = useState<boolean[]>(new Array(answers.length).fill(false));
-    const [showAnswers, setShowAnswers] = useState(false);
     const { showHints } = useSettings();
 
+    // --- Drag and Drop Logic ---
     // Generate unique IDs for all items (answers + options)
     const [allItems] = useState<{ id: string; text: string }[]>(() => {
         const getFreq = (arr: string[]) => {
@@ -164,43 +156,33 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
 
             setDroppedItems(prevDropped => {
                 const newDropped = { ...prevDropped };
-
-                // 1. Place the active item into the target drop zone
                 newDropped[targetDropZoneId] = activeId;
-
-                // 2. If the active item came from another drop zone, clear its original spot
                 if (sourceDropZoneId) {
                     delete newDropped[sourceDropZoneId];
                 }
-
                 return newDropped;
             });
 
             setDragItems(prevDragItems => {
                 let newDragItems = [...prevDragItems];
-
-                // 1. If the active item came from the bank, remove it from the bank
                 if (isFromBank) {
                     newDragItems = newDragItems.filter(item => item !== activeId);
                 }
-
-                // 2. If the target drop zone had an item, return it to the bank
                 if (itemInTargetZone) {
                     newDragItems.push(itemInTargetZone);
                 }
-
                 return newDragItems;
             });
 
         } else {
             // Dropped outside (back to bank)
-            if (sourceDropZoneId) { // Only if it came from a drop zone
+            if (sourceDropZoneId) {
                 setDroppedItems(prevDropped => {
                     const newDropped = { ...prevDropped };
-                    delete newDropped[sourceDropZoneId]; // Remove from its drop zone
+                    delete newDropped[sourceDropZoneId];
                     return newDropped;
                 });
-                setDragItems(prevDragItems => [...prevDragItems, activeId]); // Add back to bank
+                setDragItems(prevDragItems => [...prevDragItems, activeId]);
             }
         }
         setSelectedId(null);
@@ -219,13 +201,11 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
 
         // Case 1: Word selected -> Fill blank
         if (selectedId) {
-            // If same word, do nothing
             if (currentItemId === selectedId) {
                 setSelectedId(null);
                 return;
             }
 
-            // Move word to this drop zone
             const sourceDropZoneId = Object.keys(droppedItems).find(key => droppedItems[key] === selectedId);
             const isFromBank = dragItems.includes(selectedId);
 
@@ -239,7 +219,7 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
             setDragItems(prev => {
                 let next = [...prev];
                 if (isFromBank) next = next.filter(id => id !== selectedId);
-                if (currentItemId) next.push(currentItemId); // Return current item to bank
+                if (currentItemId) next.push(currentItemId);
                 return next;
             });
 
@@ -268,52 +248,15 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
         setActiveDropMenu(null);
     };
 
-    const checkAnswers = () => {
-        setSubmitted(true);
-        setShowAnswers(false);
-        setSelectedId(null);
-        setActiveDropMenu(null);
-    };
-
-    const retry = () => {
-        setSubmitted(false);
-        setShowAnswers(false);
-        setActiveDropMenu(null);
-        // Do NOT clear inputs
-    };
-
-    const reset = () => {
-        setSubmitted(false);
-        setShowAnswers(false);
-        setInputs(new Array(answers.length).fill(''));
-        setTouched(new Array(answers.length).fill(false));
-        setDroppedItems({});
-        setSelectedId(null);
-        setActiveDropMenu(null);
-
-        // Re-generate items to ensure fresh state if needed, or just reshuffle
-        // Actually, we should keep the same items
-        setDragItems(allItems.map(i => i.id).sort(() => Math.random() - 0.5));
-    };
-
     const handleShowAnswers = () => {
-        setShowAnswers(true);
-        setSubmitted(true);
-        setSelectedId(null);
-        setActiveDropMenu(null);
+        showAllAnswers(); // Sets submitted=true and inputs=answers
 
-        if (mode === 'input' || mode === 'picker') {
-            setInputs([...answers]);
-        } else {
-            // For drag mode: fill drops with correct items
-            // We need to find *an* item with the correct text for each slot
-            // This is tricky with unique IDs. We need to allocate available items to slots.
-
+        if (mode === 'drag') {
+            // Fill drops with correct items
             const newDropped: { [key: string]: string } = {};
             const usedItemIds = new Set<string>();
 
             answers.forEach((ans, idx) => {
-                // Find an item with this text that hasn't been used yet
                 const item = allItems.find(i => i.text === ans && !usedItemIds.has(i.id));
                 if (item) {
                     newDropped[`drop-${idx}`] = item.id;
@@ -326,172 +269,209 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
         }
     };
 
+    const checkAnswers = () => {
+        hookCheckAnswers();
+        // DnD validation happens in render or calculation below
+    };
+
+    const reset = () => {
+        hookReset();
+        setDroppedItems({});
+        setDragItems(allItems.map(i => i.id).sort(() => Math.random() - 0.5));
+        setSelectedId(null);
+        setActiveDropMenu(null);
+    };
+
     // Helper to look up text
     const getItemText = (id: string) => allItems.find(i => i.id === id)?.text || '';
 
     const allCorrect = (mode === 'input' || mode === 'picker')
-        ? inputs.every((val, idx) => val.trim().toLowerCase() === answers[idx].toLowerCase())
+        ? inputsAllCorrect
         : answers.every((ans, idx) => {
             const droppedId = droppedItems[`drop-${idx}`];
             return droppedId && getItemText(droppedId) === ans;
         });
 
-    // Recursive renderer to preserve structure (tables, lists, etc.)
-    // while replacing text nodes with blanks.
-    let blankIndexCounter = 0;
+    const renderBlank = (index: number, data: BlankData, status: BlankStatus) => {
+        const { value, isCorrect, isWrong } = status;
+        const { answer, localOptions } = data;
 
-    const renderChildren = (nodes: React.ReactNode): React.ReactNode => {
-        return React.Children.map(nodes, (child) => {
-            if (typeof child === 'string') {
-                // Split by blanks: [answer]
-                const parts = child.split(/(\[.*?\])/g);
-                return parts.map((part, i) => {
-                    if (part.startsWith('[') && part.endsWith(']')) {
-                        const { answer, localOptions } = blanksData[blankIndexCounter];
-                        const currentIndex = blankIndexCounter++;
+        if (mode === 'input') {
+            return (
+                <span key={index} className="inline-flex items-center relative mx-1 align-middle">
+                    <input
+                        type="text"
+                        autoCapitalize="off"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        value={value}
+                        onChange={(e) => handleInputChange(index, e.target.value)}
+                        disabled={submitted}
+                        className={clsx(
+                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center",
+                            isCorrect && submitted ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-t" :
+                                isWrong && submitted ? "border-red-500 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-t" :
+                                    "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
+                        )}
+                        style={{ width: `${Math.max(answer.length, 4)}ch` }}
+                    />
+                    {showItemHints && !submitted && (
+                        <button
+                            onClick={() => revealAnswer(index)}
+                            title={value === answer ? "Hide hint" : "Show hint"}
+                            className="ml-0.5 p-0.5 text-gray-400 hover:text-yellow-500 transition-colors focus:outline-none"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                                <path d="M9 18h6" />
+                                <path d="M10 22h4" />
+                            </svg>
+                        </button>
+                    )}
+                </span>
+            );
+        } else if (mode === 'picker') {
+            const currentOptions = localOptions.length > 0 ? localOptions : options;
+            const dropdownOptions = Array.from(new Set([...currentOptions, answer])).sort();
 
-                        // Render Input, DropZone, or Picker
-                        if (mode === 'input') {
-                            const isCorrect = submitted && inputs[currentIndex].trim().toLowerCase() === answer.toLowerCase();
-                            const isWrong = submitted && !isCorrect;
+            return (
+                <span key={index} className="inline-flex items-center relative mx-1 align-middle">
+                    <select
+                        value={value}
+                        onChange={(e) => handleInputChange(index, e.target.value)}
+                        disabled={submitted}
+                        className={clsx(
+                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center cursor-pointer appearance-none pr-4",
+                            isCorrect && submitted ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-t" :
+                                isWrong && submitted ? "border-red-500 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-t" :
+                                    "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
+                        )}
+                    >
+                        <option value="" disabled>...</option>
+                        {dropdownOptions.map((opt, idx) => (
+                            <option key={idx} value={opt}>{opt}</option>
+                        ))}
+                    </select>
+                    {showItemHints && !submitted && (
+                        <button
+                            onClick={() => revealAnswer(index)}
+                            title="Show hint"
+                            className="ml-0.5 p-0.5 text-gray-400 hover:text-yellow-500 transition-colors focus:outline-none"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                                <path d="M9 18h6" />
+                                <path d="M10 22h4" />
+                            </svg>
+                        </button>
+                    )}
+                </span>
+            );
+        } else {
+            // Drag mode
+            const dropId = `drop-${index}`;
+            const droppedItemId = droppedItems[dropId];
+            const droppedText = getItemText(droppedItemId || '');
 
-                            return (
-                                <span key={`${currentIndex}-${i}`} className="inline-block mx-1">
-                                    <input
-                                        type="text"
-                                        autoCapitalize="off"
-                                        autoComplete="off"
-                                        autoCorrect="off"
-                                        value={inputs[currentIndex]}
-                                        onChange={(e) => {
-                                            const newInputs = [...inputs];
-                                            newInputs[currentIndex] = e.target.value;
-                                            setInputs(newInputs);
+            const isCorrect = submitted && droppedText === answer;
+            const isWrong = submitted && droppedItemId && !isCorrect;
 
-                                            const newTouched = [...touched];
-                                            newTouched[currentIndex] = true;
-                                            setTouched(newTouched);
-                                        }}
-                                        disabled={submitted}
-                                        className={clsx(
-                                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center",
-                                            isCorrect ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-t" :
-                                                isWrong ? "border-red-500 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-t" :
-                                                    "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
-                                        )}
-                                        style={{ width: `${Math.max(answer.length, 4)}ch` }}
-                                    />
-                                </span>
-                            );
-                        } else if (mode === 'picker') {
-                            const isCorrect = submitted && inputs[currentIndex].trim().toLowerCase() === answer.toLowerCase();
-                            const isWrong = submitted && !isCorrect;
-                            // Combine answer with options for the dropdown
-                            // Use local options if present, otherwise global options
-                            const currentOptions = localOptions.length > 0 ? localOptions : options;
-                            const dropdownOptions = Array.from(new Set([...currentOptions, answer])).sort();
-
-                            return (
-                                <span key={`${currentIndex}-${i}`} className="inline-block mx-1">
-                                    <select
-                                        value={inputs[currentIndex]}
-                                        onChange={(e) => {
-                                            const newInputs = [...inputs];
-                                            newInputs[currentIndex] = e.target.value;
-                                            setInputs(newInputs);
-
-                                            const newTouched = [...touched];
-                                            newTouched[currentIndex] = true;
-                                            setTouched(newTouched);
-                                        }}
-                                        disabled={submitted}
-                                        className={clsx(
-                                            "border-b-2 outline-none px-1 transition-colors bg-transparent min-w-[60px] text-center cursor-pointer appearance-none pr-4",
-                                            isCorrect ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-t" :
-                                                isWrong ? "border-red-500 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-t" :
-                                                    "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
-                                        )}
-                                    >
-                                        <option value="" disabled>...</option>
-                                        {dropdownOptions.map((opt, idx) => (
-                                            <option key={idx} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
-                                </span>
-                            );
-                        } else {
-                            // Drag mode
-                            const dropId = `drop-${currentIndex}`;
-                            const droppedItemId = droppedItems[dropId];
-                            const droppedText = getItemText(droppedItemId || '');
-
-                            const isCorrect = submitted && droppedText === answer;
-                            const isWrong = submitted && droppedItemId && !isCorrect;
-
-                            return (
-                                <span key={`${currentIndex}-${i}`} className={clsx(
-                                    "inline-block mx-1 rounded px-1 relative",
-                                    isCorrect && "bg-green-100 dark:bg-green-900/30",
-                                    isWrong && "bg-red-100 dark:bg-red-900/30"
-                                )}>
-                                    <span onClick={() => handleDropZoneClick(dropId)} className="inline-block cursor-pointer">
-                                        <DropZone
-                                            id={dropId}
-                                            current={droppedItemId}
-                                            text={droppedText}
-                                            disabled={submitted}
-                                        />
-                                    </span>
-                                    {/* Options Menu */}
-                                    {activeDropMenu === dropId && !submitted && (
-                                        <span className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto block text-left">
-                                            <span className="text-xs font-semibold text-gray-500 mb-2 px-2 block">Select word:</span>
-                                            {dragItems.map(itemId => (
-                                                <button
-                                                    key={itemId}
-                                                    onClick={() => handleMenuOptionClick(dropId, itemId)}
-                                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 block"
-                                                >
-                                                    {getItemText(itemId)}
-                                                </button>
-                                            ))}
-                                            {dragItems.length === 0 && (
-                                                <span className="text-xs text-gray-400 px-2 italic block">No words available</span>
-                                            )}
-                                        </span>
-                                    )}
-                                </span>
-                            );
-                        }
-                    }
-                    return part;
-                });
-            }
-
-            if (React.isValidElement(child)) {
-                // Recurse into children
-                const props = child.props as { children?: React.ReactNode };
-                if (props.children) {
-                    return React.cloneElement(child, {
-                        ...props,
-                        children: renderChildren(props.children)
-                    } as any);
-                }
-                return child;
-            }
-
-            return child;
-        });
+            return (
+                <span key={index} className={clsx(
+                    "inline-block mx-1 rounded px-1 relative",
+                    isCorrect && "bg-green-100 dark:bg-green-900/30",
+                    isWrong && "bg-red-100 dark:bg-red-900/30"
+                )}>
+                    <span onClick={() => handleDropZoneClick(dropId)} className="inline-block cursor-pointer">
+                        <DropZone
+                            id={dropId}
+                            current={droppedItemId}
+                            text={droppedText}
+                            disabled={submitted}
+                        />
+                    </span>
+                    {/* Options Menu */}
+                    {activeDropMenu === dropId && !submitted && (
+                        <span className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[150px] max-h-[200px] overflow-y-auto block text-left">
+                            <span className="text-xs font-semibold text-gray-500 mb-2 px-2 block">Select word:</span>
+                            {dragItems.map(itemId => (
+                                <button
+                                    key={itemId}
+                                    onClick={() => handleMenuOptionClick(dropId, itemId)}
+                                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 block"
+                                >
+                                    {getItemText(itemId)}
+                                </button>
+                            ))}
+                            {dragItems.length === 0 && (
+                                <span className="text-xs text-gray-400 px-2 italic block">No words available</span>
+                            )}
+                        </span>
+                    )}
+                </span>
+            );
+        }
     };
+
+    const isMarkdown = typeof contentToProcess === 'string' && (contentToProcess.includes('|') || contentToProcess.includes('\n'));
+
+    let content;
+    if (isMarkdown) {
+        const text = contentToProcess as string;
+        const parts = text.split(/(\[.*?\])/g);
+        let blankIndex = 0;
+        const processedMarkdown = parts.map(part => {
+            if (part.startsWith('[') && part.endsWith(']')) {
+                const index = blankIndex++;
+                return `<span data-blank="${index}"></span>`;
+            }
+            return part;
+        }).join('');
+
+        content = (
+            <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
+                components={{
+                    span: (props) => {
+                        const indexStr = (props as any)['data-blank'];
+                        if (indexStr !== undefined) {
+                            const index = parseInt(indexStr as string);
+                            const data = blanksData[index];
+                            if (!data) return null;
+
+                            const value = inputs[index] || '';
+                            const isCorrect = value.trim().toLowerCase() === data.answer.toLowerCase();
+                            const showValidation = submitted || (touched[index] && value.trim() !== '');
+                            const status = {
+                                value,
+                                isCorrect,
+                                isWrong: showValidation && !isCorrect,
+                                touched: touched[index],
+                                showValidation
+                            };
+                            return renderBlank(index, data, status);
+                        }
+                        return <span {...props} />;
+                    }
+                }}
+            >
+                {processedMarkdown}
+            </ReactMarkdown>
+        );
+    } else {
+        content = renderContent(renderBlank);
+    }
 
     return (
         <div className="my-6 p-6 border border-gray-200 rounded-xl bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                <div className="mb-6 leading-loose text-lg text-gray-800 dark:text-gray-200">
-                    {/* Render children recursively */}
-                    {renderChildren(children)}
+                <div className={clsx(
+                    "mb-6 leading-loose text-lg text-gray-800 dark:text-gray-200",
+                    isMarkdown && "prose dark:prose-invert max-w-none"
+                )}>
+                    {content}
                 </div>
-
                 {mode === 'drag' && !submitted && (
                     <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
                         <div className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Options:</div>
@@ -531,7 +511,10 @@ export const FillBlanks: React.FC<FillBlanksProps> = ({ children, mode = 'input'
                 ) : (
                     <>
                         <button
-                            onClick={retry}
+                            onClick={() => {
+                                setSubmitted(false); // Just unsubmit to allow fixing
+                                // Do NOT clear inputs
+                            }}
                             className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 dark:bg-gray-700 dark:text-white transition-colors"
                         >
                             Fix
